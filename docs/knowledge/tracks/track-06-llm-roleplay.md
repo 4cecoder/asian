@@ -15,7 +15,7 @@ serving travel-scenario roleplay over WebSockets, with live pedagogical
 correction, formality/cultural grading, and difficulty adaptation layered
 on top. Architecture flow: client audio → WebSocket multiplexer → input
 guardrails + scenario FSM + VAD/interruption handling (parallel) → edge
-LLM orchestrator → dialogue stream to TTS *and* pedagogical correction
+LLM orchestrator → dialogue stream to TTS _and_ pedagogical correction
 engine (parallel).
 
 **Source truncation:** the specification document
@@ -39,6 +39,7 @@ only — everything else here is complete.
 8. [[t06-guardrails-injection-defense]] (TASK-171–180, **partial**) — prompt injection defense, exfiltration/persona-break guards.
 
 ## Related tracks
+
 - [[track-05-stt-pronunciation]] — supplies the transcripts and pronunciation scores this track's roleplay sessions consume.
 - [[track-04-tts-audio]] — receives this track's dialogue stream for speech synthesis.
 - [[track-09-nextjs-frontend]] — client-side counterpart (stub — source has no detailed task list for this track yet).

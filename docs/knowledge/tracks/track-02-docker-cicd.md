@@ -5,7 +5,14 @@ track: "Track 2 of 10"
 task_range: "TASK-CI-001–TASK-CI-100"
 status: complete
 tags: [k8s, moc, docker, cicd]
-related: [t02-dockerfile-architecture, t02-multiarch-buildx, t02-security-signing, t02-ci-quality-gates, t02-cd-rollout-rollbacks]
+related:
+  [
+    t02-dockerfile-architecture,
+    t02-multiarch-buildx,
+    t02-security-signing,
+    t02-ci-quality-gates,
+    t02-cd-rollout-rollbacks,
+  ]
 ---
 
 # Track 2: Docker Containerization, Multi-Arch Image Pipelines & GitHub Actions CI/CD
@@ -26,6 +33,7 @@ of 20 tasks each — no gaps.
 5. [[t02-cd-rollout-rollbacks]] (E) — GitHub Environments, staging/prod Kustomize, rollout+auto-rollback, canary analysis, release notes, master pipeline validator (TASK-CI-081–100).
 
 ## Overlap note
+
 Sub-track A's Dockerfiles cover the same artifacts as Track 1's
 [[t01-containerization]] module — the two packages describe the same
 files from different ownership angles (CI/CD build-out vs. infra

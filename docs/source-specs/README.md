@@ -6,11 +6,11 @@ backlog for the **Asian Language Learning Platform** (10 tracks × 100 tasks).
 
 ## Files and what they actually are
 
-| File in this folder | Original filename | Status |
-|---|---|---|
-| `complete-spec-nextjs16.md` | `Asian Language Learning Platform — Complete 1,000 Micro-Tasks Specification (Next.js 16).docx` | **Canonical.** Used as the extraction source. |
-| _(not copied — duplicate)_ | `...Master 1,000 Micro-Tasks Blueprint (Next.js 16).docx` | Same content as the canonical file, reformatted (fewer paragraph breaks). Title-cased "(Next.js 16)". No unique information — not copied to avoid maintaining two copies of one source. |
-| _(not copied — superseded)_ | `...Complete 1,000 Micro-Tasks Production Specification.docx` | Earlier revision of the canonical file, targeting **Next.js 15** instead of 16. Superseded. |
+| File in this folder         | Original filename                                                                               | Status                                                                                                                                                                                  |
+| --------------------------- | ----------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `complete-spec-nextjs16.md` | `Asian Language Learning Platform — Complete 1,000 Micro-Tasks Specification (Next.js 16).docx` | **Canonical.** Used as the extraction source.                                                                                                                                           |
+| _(not copied — duplicate)_  | `...Master 1,000 Micro-Tasks Blueprint (Next.js 16).docx`                                       | Same content as the canonical file, reformatted (fewer paragraph breaks). Title-cased "(Next.js 16)". No unique information — not copied to avoid maintaining two copies of one source. |
+| _(not copied — superseded)_ | `...Complete 1,000 Micro-Tasks Production Specification.docx`                                   | Earlier revision of the canonical file, targeting **Next.js 15** instead of 16. Superseded.                                                                                             |
 
 All three were compared byte-for-byte after `.docx → .txt` conversion
 (`textutil -convert txt`); the Master Blueprint and Production Specification
@@ -23,18 +23,18 @@ files again and want to re-verify, they were in `~/Downloads`.
 The canonical spec is **not actually complete**. It stops mid-document.
 Verified by task-ID census against the doc's own table of contents:
 
-| Track | ID range | Present in source? |
-|---|---|---|
-| 1 — Kubernetes & Infra | TASK-001–100 | ✅ Full (100/100) |
-| 2 — Docker & CI/CD | TASK-CI-001–100 | ✅ Full (100/100) |
-| 3 — Python/FastAPI Backend | PY-001–100 | ✅ Full (100/100) |
-| 4 — Moonshot TTS | TTS-001–100 | ✅ Full (100/100) |
-| 5 — STT / Pronunciation | STT-001–100 | ✅ Full (100/100) |
-| 6 — Edge LLM / Roleplay | TASK-101–200 | ⚠️ Partial — cuts off around TASK-180 |
-| 7 — SRS Engine | SRS-001–100 | ❌ Overview table only, no task bodies |
-| 8 — Convex DB | TASK-801–900 | ❌ Overview table only, no task bodies |
-| 9 — Next.js 16 Frontend | TASK-FE-001–100 | ❌ Overview table only, no task bodies |
-| 10 — Phrasebook PWA | TASK-10-001–100 | ❌ Overview table only, no task bodies |
+| Track                      | ID range        | Present in source?                     |
+| -------------------------- | --------------- | -------------------------------------- |
+| 1 — Kubernetes & Infra     | TASK-001–100    | ✅ Full (100/100)                      |
+| 2 — Docker & CI/CD         | TASK-CI-001–100 | ✅ Full (100/100)                      |
+| 3 — Python/FastAPI Backend | PY-001–100      | ✅ Full (100/100)                      |
+| 4 — Moonshot TTS           | TTS-001–100     | ✅ Full (100/100)                      |
+| 5 — STT / Pronunciation    | STT-001–100     | ✅ Full (100/100)                      |
+| 6 — Edge LLM / Roleplay    | TASK-101–200    | ⚠️ Partial — cuts off around TASK-180  |
+| 7 — SRS Engine             | SRS-001–100     | ❌ Overview table only, no task bodies |
+| 8 — Convex DB              | TASK-801–900    | ❌ Overview table only, no task bodies |
+| 9 — Next.js 16 Frontend    | TASK-FE-001–100 | ❌ Overview table only, no task bodies |
+| 10 — Phrasebook PWA        | TASK-10-001–100 | ❌ Overview table only, no task bodies |
 
 **Implication:** the knowledge base under `docs/knowledge/` faithfully
 reflects this — Tracks 1–5 have full per-module packages, Track 6 has a
