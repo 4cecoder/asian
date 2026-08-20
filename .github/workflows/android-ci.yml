@@ -43,7 +43,7 @@ jobs:
         if: steps.changed.outputs.relevant != 'true'
         run: echo "Nothing under apps/android changed in this diff."
 
-      - uses: actions/setup-java@v4
+      - uses: actions/setup-java@v5
         if: steps.changed.outputs.relevant == 'true'
         with:
           distribution: temurin
