@@ -5,7 +5,19 @@ track: "Track 1 of 10"
 task_range: "TASK-001–TASK-100"
 status: complete
 tags: [k8s, moc, infra]
-related: [t01-namespaces-governance, t01-rbac-identity, t01-networkpolicies, t01-ingress-gateway, t01-cert-manager, t01-volterra-edge, t01-containerization, t01-workload-deployments, t01-autoscaling, t01-observability]
+related:
+  [
+    t01-namespaces-governance,
+    t01-rbac-identity,
+    t01-networkpolicies,
+    t01-ingress-gateway,
+    t01-cert-manager,
+    t01-volterra-edge,
+    t01-containerization,
+    t01-workload-deployments,
+    t01-autoscaling,
+    t01-observability,
+  ]
 ---
 
 # Track 1: Kubernetes, Cloud Infrastructure & Volterra Edge Mesh

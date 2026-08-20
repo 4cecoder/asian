@@ -1,0 +1,38 @@
+name: Feature / task
+description: New work — a spec task, a DX improvement, a new capability
+labels: ["enhancement"]
+body:
+  - type: textarea
+    id: summary
+    attributes:
+      label: Summary
+      description: What should exist that doesn't yet?
+    validations:
+      required: true
+  - type: input
+    id: spec-link
+    attributes:
+      label: Related spec task(s), if any
+      description: "e.g. TASK-031, or a docs/knowledge/modules/... package id"
+    validations:
+      required: false
+  - type: textarea
+    id: acceptance
+    attributes:
+      label: Acceptance criteria
+      description: A literal command + expected result, not "should work". See docs/knowledge/ai-agent-docs-guide.md.
+    validations:
+      required: true
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      options:
+        - apps/web (Next.js)
+        - apps/android (Kotlin)
+        - docs/knowledge
+        - CI/CD & tooling
+        - infra (future — Track 1/2/3 etc.)
+        - other
+    validations:
+      required: true

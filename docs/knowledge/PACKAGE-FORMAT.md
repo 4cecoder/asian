@@ -39,13 +39,13 @@ docs/knowledge/
 
 ```yaml
 ---
-id: t01-namespaces-governance      # kebab-case, prefixed with track number
+id: t01-namespaces-governance # kebab-case, prefixed with track number
 title: "Module 1: Multi-Tenant Namespaces & Resource Governance"
 track: "Track 1: Kubernetes, Cloud Infrastructure & Volterra Edge Mesh"
 task_range: "TASK-001–TASK-010"
-status: complete                   # complete | partial | stub
+status: complete # complete | partial | stub
 tags: [k8s, namespaces, rbac, ...]
-related: [t01-rbac-identity, t01-networkpolicies]   # other package ids, no [[ ]] needed in frontmatter
+related: [t01-rbac-identity, t01-networkpolicies] # other package ids, no [[ ]] needed in frontmatter
 ---
 ```
 
@@ -56,14 +56,14 @@ related: [t01-rbac-identity, t01-networkpolicies]   # other package ids, no [[ ]
    from the source doc).
 2. **Task table** — every task in the module/domain/sub-track, condensed:
 
-   | ID | Title | Depends on | Spec (condensed) | Acceptance check |
-   |---|---|---|---|---|
-
+   | ID  | Title | Depends on | Spec (condensed) | Acceptance check |
+   | --- | ----- | ---------- | ---------------- | ---------------- |
    - "Spec (condensed)" and "Acceptance check": short-sentence style per
      `style-guide.md` — one instruction per sentence, active voice, no
      stacked subordinate clauses. Keep every concrete fact (file paths,
      exact thresholds, commands, config keys) — condensing means cutting
      wordiness, never cutting specifics.
+
 3. **Related packages** — `[[wikilink]]`-style list of other package ids
    this module depends on or feeds into, e.g. `- [[t01-rbac-identity]]`.
 

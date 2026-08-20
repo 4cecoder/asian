@@ -28,9 +28,28 @@ bun-debug.log*
 .vercel
 .netlify
 
+# convex — schema/functions code is fine to publish; deployment data,
+# generated bindings, and local dev state are not. See SECURITY.md.
+convex/_generated/
+.convex/
+*.convex.local
+
+# android / gradle
+apps/android/.gradle/
+apps/android/build/
+apps/android/app/build/
+apps/android/local.properties
+apps/android/.idea/
+apps/android/*.iml
+apps/android/captures/
+apps/android/.cxx/
+
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# turborepo
+.turbo/
 
 # editors
 .vscode/*

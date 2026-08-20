@@ -27,18 +27,18 @@ See `docs/source-specs/README.md` for the full census. Short version: the
 source specification itself is truncated, so this knowledge base is too —
 faithfully, not padded.
 
-| Track | Status | Coverage |
-|---|---|---|
-| [[track-01-k8s-infra]] | ✅ complete | 100/100 |
-| [[track-02-docker-cicd]] | ✅ complete | 100/100 |
-| [[track-03-python-backend]] | ✅ complete | 100/100 |
-| [[track-04-tts-audio]] | ✅ complete | 100/100 |
-| [[track-05-stt-pronunciation]] | ✅ complete | 100/100 |
-| [[track-06-llm-roleplay]] | ⚠️ partial | 77/100 (source cuts off mid-TASK-177) |
-| [[track-07-srs-engine]] | ❌ stub | 0/100 — scope line only |
-| [[track-08-convex-db]] | ❌ stub | 0/100 — scope line only |
-| [[track-09-nextjs-frontend]] | ❌ stub | 0/100 — scope line only |
-| [[track-10-phrasebook-pwa]] | ❌ stub | 0/100 — scope line only |
+| Track                          | Status      | Coverage                              |
+| ------------------------------ | ----------- | ------------------------------------- |
+| [[track-01-k8s-infra]]         | ✅ complete | 100/100                               |
+| [[track-02-docker-cicd]]       | ✅ complete | 100/100                               |
+| [[track-03-python-backend]]    | ✅ complete | 100/100                               |
+| [[track-04-tts-audio]]         | ✅ complete | 100/100                               |
+| [[track-05-stt-pronunciation]] | ✅ complete | 100/100                               |
+| [[track-06-llm-roleplay]]      | ⚠️ partial  | 77/100 (source cuts off mid-TASK-177) |
+| [[track-07-srs-engine]]        | ❌ stub     | 0/100 — scope line only               |
+| [[track-08-convex-db]]         | ❌ stub     | 0/100 — scope line only               |
+| [[track-09-nextjs-frontend]]   | ❌ stub     | 0/100 — scope line only               |
+| [[track-10-phrasebook-pwa]]    | ❌ stub     | 0/100 — scope line only               |
 
 **577 of 1,000 tasks** have full extracted detail; the platform's own
 allocation table accounts for the rest by scope, not by task body.
@@ -129,6 +129,10 @@ table) and what's missing.
 - [[track-09-nextjs-frontend]] — the app scaffolded at `apps/web` in this repo
 - [[track-10-phrasebook-pwa]] — offline PWA, 500+ situational phrases
 
+## Architecture decisions
+
+- [[adr-0001-android-kotlin]] — if a native Android app is built, it's Kotlin/Compose, not Java/Flutter/RN. Scaffold already exists at `apps/android/`.
+
 ## Meta
 
 - [[PACKAGE-FORMAT]] — the schema every package in this base follows
@@ -136,3 +140,5 @@ table) and what's missing.
 - [[ai-agent-docs-guide]] — writing rules for agent-consumed docs specifically
 - [[glossary]] — domain terms
 - `docs/source-specs/README.md` — provenance and the full completeness census
+- `CONTRIBUTING.md` — dev setup, everyday commands, git hooks, branching
+- `SECURITY.md` — what "public except Convex data" actually means

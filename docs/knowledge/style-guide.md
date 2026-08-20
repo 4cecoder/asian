@@ -15,7 +15,7 @@ from **ASD-STE100 (Simplified Technical English), Issue 9**, the aerospace
 industry's controlled-language standard for maintenance and engineering
 documentation. ASD-STE100 itself is not reproduced here (its usage rights
 are restricted to specific aerospace/defense member organizations, and
-this project isn't one); what follows is its underlying *principles*,
+this project isn't one); what follows is its underlying _principles_,
 restated in plain language and re-aimed at software specs instead of
 aircraft manuals. Where ASD-STE100 says "use only the ~2,500 words in the
 approved dictionary," we say "prefer a small, consistent vocabulary" —
@@ -88,8 +88,8 @@ correct meaning on the first pass, without re-reading.
   a list of files, a list of steps, a list of config keys. Prose forces
   the reader to parse structure that a list gives for free.
 - **Give information gradually**, most-important-first, and connect
-  sentences with plain connecting words (*and, but, then, thus, as a
-  result*) so the logical flow is explicit rather than implied.
+  sentences with plain connecting words (_and, but, then, thus, as a
+  result_) so the logical flow is explicit rather than implied.
 
 ## Applying this in practice
 

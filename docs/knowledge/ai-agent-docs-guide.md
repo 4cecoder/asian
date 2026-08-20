@@ -55,7 +55,7 @@ knowledge base is organized — see [[package-format]]) can't infer
 see the previous one. If a dependency is real, name it by ID.
 
 **4. Never let a pronoun's antecedent be ambiguous.**
-"Update the config and restart it" — restart *what*, the config or the
+"Update the config and restart it" — restart _what_, the config or the
 service? Repeat the noun instead of using "it," "this," or "that" whenever
 more than one candidate noun is in play, even though it reads slightly
 more repetitive to a human.
