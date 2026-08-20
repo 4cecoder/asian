@@ -30,9 +30,17 @@ bun-debug.log*
 
 # convex — schema/functions code is fine to publish; deployment data,
 # generated bindings, and local dev state are not. See SECURITY.md.
-convex/_generated/
+# (Must be **/-prefixed: a mid-string "/" anchors a gitignore pattern to
+# the repo root, so a bare "convex/_generated/" silently only matched a
+# root-level convex/ and never apps/web/convex/ — caught by inspecting
+# git status right after the real deployment created the directory.)
+**/convex/_generated/
 .convex/
 *.convex.local
+.auth-keys.json
+# regenerated from convex/seed/build-*.ts — large, and identical output
+# from the same public source, so not worth tracking in git
+apps/web/convex/seed/*.jsonl
 
 # android / gradle
 apps/android/.gradle/

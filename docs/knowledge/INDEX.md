@@ -133,6 +133,8 @@ table) and what's missing.
 
 - [[adr-0001-android-kotlin]] — if a native Android app is built, it's Kotlin/Compose, not Java/Flutter/RN. Scaffold already exists at `apps/android/`.
 - [[adr-0002-ios-swift]] — if a native iOS app is built, it's Swift 6.2+/SwiftUI. Scaffold already exists at `apps/ios/` (XcodeGen, not a committed `.xcodeproj`).
+- [[adr-0003-auth-architecture]] — Convex Auth for the web app, a separate concern from Track 3's FastAPI JWT auth, not a replacement for it.
+- [[adr-0004-frontend-architecture]] — route map, component conventions ("reusable legos"), and when to use Convex hooks vs. TanStack Query vs. Server Actions vs. Context.
 
 ## Meta
 
