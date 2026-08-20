@@ -1,0 +1,32 @@
+name: Bug report
+description: Something is broken
+labels: ["bug"]
+body:
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened?
+      description: One or two sentences. What did you do, what did you expect, what happened instead?
+    validations:
+      required: true
+  - type: input
+    id: area
+    attributes:
+      label: Where
+      description: "e.g. apps/web, docs/knowledge, apps/android, CI"
+    validations:
+      required: true
+  - type: textarea
+    id: repro
+    attributes:
+      label: Steps to reproduce
+      description: Exact commands or clicks. Include the actual output, not a paraphrase.
+    validations:
+      required: false
+  - type: textarea
+    id: context
+    attributes:
+      label: Additional context
+      description: Logs, screenshots, links to the relevant docs/knowledge package.
+    validations:
+      required: false
