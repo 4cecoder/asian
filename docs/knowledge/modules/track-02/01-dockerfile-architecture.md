@@ -1,0 +1,51 @@
+---
+id: t02-dockerfile-architecture
+title: "Sub-Track A: Dockerfile Architecture & Container Optimization"
+track: "Track 2: Docker Containerization, Multi-Arch Image Pipelines & GitHub Actions CI/CD"
+task_range: "TASK-CI-001–TASK-CI-020"
+status: complete
+tags: [docker, dockerfile, bun, uv, hadolint, compose]
+related: [t01-containerization, t02-multiarch-buildx]
+---
+
+# Sub-Track A: Dockerfile Architecture & Container Optimization
+
+Builds the production Dockerfiles task by task, staged and testable at
+each step: Next.js standalone output config, `.dockerignore`, base/build/
+runtime stages with Bun, a non-root user, an HTTP health endpoint, tini
+signal handling — mirrored for the Python side with `uv`, a slim non-root
+runtime, and FastAPI health routers — then Hadolint linting, a local
+Compose stack, build-arg version injection, read-only filesystem
+hardening, a resource-footprint benchmark, and one unified local build
+script. Overlaps with Track 1's `[[t01-containerization]]` (same
+Dockerfiles, infra-owned baseline); this sub-track is the CI/CD-pipeline
+build-out of the same artifacts, with per-task validation commands.
+
+## Tasks
+
+| ID | Title | Depends on | Spec (condensed) | Acceptance check |
+|---|---|---|---|---|
+| TASK-CI-001 | Next.js 16 Standalone Output Configuration | None | In `web/next.config.mjs` add `output: "standalone"` and `experimental: { outputFileTracingRoot: path.join(__dirname, "../") }`. Static assets copy into the standalone folder at build. | `cd web && bun run build && test -f .next/standalone/server.js` |
+| TASK-CI-002 | Next.js Monorepo Sub-Directory `.dockerignore` | TASK-CI-001 | Create `web/.dockerignore` ignoring `node_modules`, `.next`, `.git`, `.github`, `coverage`, `*.log`, `.env*.local`, `e2e`, `playwright-report`. | `docker build --no-cache -f web/Dockerfile ./web 2>&1 \| grep "transferring context"` shows build context < 10MB. |
+| TASK-CI-003 | Next.js Base & Dependency Stage with Bun | TASK-CI-002 | `web/Dockerfile` Stage 1 `base`: `oven/bun:1.1-alpine`, `WORKDIR /app`, copy `package.json` + `bun.lockb`/`bun.lock`, `bun install --frozen-lockfile`. | `docker build --target base -f web/Dockerfile ./web` — deps install cleanly, no build-tool errors. |
+| TASK-CI-004 | Next.js Production Build Stage with Bun | TASK-CI-003 | Stage 2 `builder`: inherit `base`, copy `src`, `public`, `next.config.mjs`, `tsconfig.json`, `tailwind.config.ts`; `NODE_ENV=production`; `bun run build`. | `docker build --target builder -f web/Dockerfile ./web` exits 0. |
+| TASK-CI-005 | Next.js Minimal Runtime Stage with Unprivileged User | TASK-CI-004 | Stage 3 `runner`: `oven/bun:1.1-alpine`; group `nodejs` (GID 1001), user `nextjs` (UID 1001); copy `.next/standalone`, `.next/static`, `public`; `USER nextjs`; expose 3000; `CMD ["bun","server.js"]`. | `docker run --rm lingo-frontend id \| grep "uid=1001(nextjs)"`; final image < 180MB. |
+| TASK-CI-006 | Next.js HTTP Health Check Endpoint & In-Container Probe | TASK-CI-005 | Create `web/src/app/api/health/route.ts` returning `{"status":"ok","timestamp":"...","uptime":process.uptime()}` HTTP 200. Add `HEALTHCHECK --interval=15s --timeout=3s --retries=3 CMD wget -qO- http://localhost:3000/api/health \|\| exit 1` to `web/Dockerfile`. | `docker inspect --format='{{.State.Health.Status}}'` reports `healthy`. |
+| TASK-CI-007 | Bun Server Process Signal Handling & Tini Integration | TASK-CI-005 | In the runner stage: `apk add --no-cache tini`; `ENTRYPOINT ["/sbin/tini", "--"]` to forward SIGTERM/SIGINT correctly. | `time docker stop lingo-frontend` — container stops within 2s, not SIGKILLed. |
+| TASK-CI-008 | Python 3.13 UV Package Manager Configuration | None | Create `api/pyproject.toml` targeting Python 3.13 with FastAPI, Pydantic v2, Uvicorn, httpx, tenacity, faster-whisper, numpy, plus dev tools ruff/mypy/pytest. Generate frozen `api/uv.lock` via `uv lock`. | `cd api && uv lock --check` confirms the lockfile matches `pyproject.toml`. |
+| TASK-CI-009 | Python Microservice `.dockerignore` Definition | TASK-CI-008 | Create `api/.dockerignore` ignoring `.venv`, `__pycache__`, `*.pyc`, `.pytest_cache`, `.mypy_cache`, `.ruff_cache`, `.git`, `.env*`, `tests`, `htmlcov`. | `docker build --no-cache -f api/Dockerfile ./api 2>&1 \| grep "transferring context"` shows local venvs/caches excluded. |
+| TASK-CI-010 | Python Base & UV Virtualenv Builder Stage | TASK-CI-009 | `api/Dockerfile` Stage 1 `builder`: `ghcr.io/astral-sh/uv:python3.13-bookworm-slim`; `WORKDIR /app`; `UV_COMPILE_BYTECODE=1`, `UV_LINK_MODE=copy`; copy `pyproject.toml` + `uv.lock`; `uv sync --frozen --no-install-project --no-dev`. | `docker build --target builder -f api/Dockerfile ./api` — `/app/.venv` built with precompiled `.pyc` files. |
+| TASK-CI-011 | Python Slim Runtime Stage with Non-Root Security Context | TASK-CI-010 | Stage 2 `runner`: `python:3.13-slim-bookworm`; group `appgroup` (GID 1001), user `appuser` (UID 1001); copy `/app/.venv` and `api/app`; `PATH="/app/.venv/bin:$PATH"`; `USER appuser`; expose 8000; `CMD ["uvicorn","app.main:app","--host","0.0.0.0","--port","8000","--workers","2"]`. | `docker run --rm lingo-worker python -c "import os; print(os.getuid())"` prints `1001`. |
+| TASK-CI-012 | Python FastAPI Liveness, Readiness & Startup Health Probe Handlers | TASK-CI-011 | Create `api/app/routers/health.py`: `GET /healthz` (liveness, immediate 200), `GET /readyz` (readiness — checks S3 and LLM endpoint reachability), `GET /startupz` (startup — verifies model weights/warmup). Register in `api/app/main.py`; add `HEALTHCHECK` to `api/Dockerfile`. | `curl -f http://localhost:8000/readyz` returns the expected 200 payload. |
+| TASK-CI-013 | Python Graceful Shutdown & ASGI Signal Handler | TASK-CI-011 | Implement an async lifespan context manager in `api/app/main.py`: drain active WebSockets, close `httpx.AsyncClient` pools, flush metrics on SIGTERM. | `uv run pytest tests/test_lifespan.py` — active connections finish before Uvicorn shuts down within the timeout window. |
+| TASK-CI-014 | Hadolint Dockerfile Linter Setup & Configuration | TASK-CI-005, TASK-CI-011 | Create `.hadolint.yaml`: `trustedRegistries: ["docker.io","ghcr.io"]`; ignore DL3008 where version pinning is intentional; enforce DL3002 (non-root). Create `scripts/lint-dockerfiles.sh` running hadolint against both Dockerfiles. | `hadolint web/Dockerfile api/Dockerfile` passes with 0 warnings/errors. |
+| TASK-CI-015 | Local Multi-Service Container Emulation via Docker Compose | TASK-CI-005, TASK-CI-011 | Create `docker-compose.yml`: services `web` (3000), `api` (8000), bridge network `lingo-net`, shared volume mounts, local env vars. | `docker compose up -d && docker compose ps \| grep -E "Up\|running"` — both services up, networked. |
+| TASK-CI-016 | Local Container Health & Inter-Service Network Validation Script | TASK-CI-015 | Create `scripts/test-local-compose.sh`: boot via Compose, poll health endpoints every 2s for 30s, test frontend→backend internal HTTP call, tear down. | `bash scripts/test-local-compose.sh` exits 0. |
+| TASK-CI-017 | Dynamic Build-Time Environment Argument Handling | TASK-CI-004 | Add `ARG NEXT_PUBLIC_APP_VERSION`, `ARG COMMIT_SHA`, `ENV NEXT_PUBLIC_APP_VERSION=$NEXT_PUBLIC_APP_VERSION` to `web/Dockerfile`; inject at build time without baking runtime secrets into image layers. | `docker run --rm lingo-frontend env \| grep "NEXT_PUBLIC_APP_VERSION"` shows the injected version. |
+| TASK-CI-018 | Container Ephemeral Filesystem Hardening | TASK-CI-005, TASK-CI-011 | Run both Dockerfiles under `readOnlyRootFilesystem`; add `VOLUME ["/tmp"]` to each for writable temp storage. | `docker run --rm --read-only --tmpfs /tmp lingo-worker python -c "print('ok')"` succeeds. |
+| TASK-CI-019 | Container Resource Footprint Benchmark & Memory Limit Script | TASK-CI-016 | Create `scripts/benchmark-containers.sh`: measure idle RAM/CPU of both images under load via `docker stats --no-stream`. | `bash scripts/benchmark-containers.sh` — idle memory: frontend < 80MB, worker < 120MB. |
+| TASK-CI-020 | Unified Local Container Build & Syntax Check Script | TASK-CI-001…TASK-CI-019 | Create `scripts/build-containers-local.sh`: run Hadolint, build both images via buildx, validate healthcheck outputs. | `bash scripts/build-containers-local.sh` completes the full local pipeline in < 60s with cached layers. |
+
+## Related packages
+- [[t01-containerization]] — Track 1's infra-owned version of these same Dockerfiles.
+- [[t02-multiarch-buildx]] — multi-arch build pipeline these Dockerfiles feed into next.

@@ -1,0 +1,40 @@
+---
+id: t04-sentence-boundary-buffering
+title: "Module 2: Sentence Boundary Buffering & Asian Text Segmentation"
+track: "Track 4: Moonshot TTS Engine, Audio Processing Pipeline, Storage & Streaming"
+task_range: "TTS-016–TTS-030"
+status: complete
+tags: [tts, text-processing, cjk, thai, segmentation]
+related: [t04-moonshot-client-resilience]
+---
+
+# Module 2: Sentence Boundary Buffering & Asian Text Segmentation
+
+Turns a raw incoming LLM token stream into clean, punctuated, correctly
+paced sentence chunks ready for TTS — handling CJK punctuation, Thai
+word-break segmentation, quoted dialogue, number/acronym normalization, and
+hard length limits, so the audio pipeline never has to synthesize a
+malformed or absurdly long chunk.
+
+## Tasks
+
+| ID | Title | Depends on | Spec (condensed) | Acceptance check |
+|---|---|---|---|---|
+| TTS-016 | Universal sentence token buffer interface | None | `backend/app/core/text/buffer.py`. `AbstractTokenBuffer`: `feed_token(token)`, `has_complete_sentence()`, `pop_sentence()`, `flush()`. | Interfaces compile with full typing across all language segmenters. `uv run pytest tests/text/test_buffer_interface.py`. |
+| TTS-017 | CJK terminal punctuation boundary matcher | TTS-016 | `backend/app/core/text/cjk_punct.py`. `CJKTerminalMatcher` recognizes Mandarin/Japanese `。！？…\n` and Western `.!?`. Ignores periods in decimals (`3.5`) and abbreviations (`Mr.`). | Splits `"你好！欢迎来到东京。请坐。"` into 3 sentences. `uv run pytest tests/text/test_cjk_punct.py`. |
+| TTS-018 | Asian comma & sub-clause pausing filter | TTS-017 | `backend/app/core/text/cjk_pause.py`. Splits on enumeration comma `、` and standard commas `,，` once the buffer exceeds 30 chars. | Prevents run-on sentences without splitting short clauses prematurely. `uv run pytest tests/text/test_cjk_pause.py`. |
+| TTS-019 | Thai word-break segmentation engine | TTS-016 | `backend/app/core/text/thai_seg.py`. `ThaiSentenceSegmenter` via `pythainlp.tokenize.word_tokenize` (or ICU dictionary fallback). Segments on spaces, polite particles (`ครับ`, `ค่ะ`), clause markers (`และ`, `หรือ`, `แต่`) past 25 chars. | Correctly segments unspaced Thai text into natural chunks. `uv run pytest tests/text/test_thai_seg.py`. |
+| TTS-020 | Quoted dialogue & parenthetical handler | TTS-017 | `backend/app/core/text/enclosures.py`. `EnclosureAwareBuffer` tracks nested `「…」`, `『…』`, `"…"`, `(…)`. No splitting inside an unclosed quote/paren. | `"他说：『明天去曼谷。』"` stays a single synthesis block. `uv run pytest tests/text/test_enclosures.py`. |
+| TTS-021 | Number, currency & measure-word normalizer | None | `backend/app/core/text/numbers.py`. Normalizes currency/numbers per language: `¥1,500` → `千五百円`/`一千五百块`, `฿250` → `สองร้อยห้าสิบบาท`, `₫50.000` → `năm mươi nghìn đồng`. | Digits convert to native phonetic script for correct TTS pronunciation. `uv run pytest tests/text/test_number_normalizer.py`. |
+| TTS-022 | Latin acronym & mixed-script expander | None | `backend/app/core/text/acronyms.py`. Expands travel terms: `BTS`, `MRT`, `7-11` ("Seven-Eleven"/"Sebun"), `SIM`, `Wi-Fi`. | Acronyms expand into locale-appropriate phonetic readings. `uv run pytest tests/text/test_acronyms.py`. |
+| TTS-023 | Minimum syllable threshold & lookahead buffer | TTS-017 | `backend/app/core/text/lookahead.py`. Enforce ≥4 syllables before release; merge short standalone greetings ("Hi.", "Oh.") into the next sentence. | Prevents jarring 1-word audio chunks. `uv run pytest tests/text/test_lookahead.py`. |
+| TTS-024 | Maximum character length forced splitter | TTS-017 | `backend/app/core/text/splitter.py`. Hard 80-char ceiling per chunk. No punctuation → split at nearest particle/space with an ellipsis pause (`…`). | Eliminates TTS timeouts on run-on inputs. `uv run pytest tests/text/test_splitter.py`. |
+| TTS-025 | Whitespace & zero-width space sanitizer | None | `backend/app/core/text/sanitizer.py`. Strips `​`, ` `, redundant spaces, trailing `\r\n`. | Produces clean Unicode strings, no hidden control chars. `uv run pytest tests/text/test_sanitizer.py`. |
+| TTS-026 | Stream end-of-transmission flush logic | TTS-016 | `backend/app/core/text/flusher.py`. `flush_remaining(buffer) -> list[str]` empties all residual tokens on stream termination, regardless of punctuation state. | Zero dropped tokens at the end of an LLM generation stream. `uv run pytest tests/text/test_flusher.py`. |
+| TTS-027 | Streaming sentence pipeline orchestrator | TTS-017–TTS-026 | `backend/app/core/text/orchestrator.py`. `stream_sentence_chunks(token_gen, lang) -> AsyncGenerator[str, None]` pipes tokens through sanitizer → segmenter → lookahead → flusher. | Streams punctuated sentences in real time, < 5ms buffer overhead. `uv run pytest tests/text/test_orchestrator.py`. |
+| TTS-028 | Token buffer benchmark & latency profiler | TTS-027 | `backend/app/core/text/benchmark.py`. Measures buffering latency/chunk distribution across a 10,000-token multilingual corpus. | Buffering overhead strictly < 2.0ms per token. `uv run pytest tests/text/test_benchmark.py`. |
+| TTS-029 | Emoji & markdown syntax stripper | None | `backend/app/core/text/cleaner.py`. Strips markdown (`**bold**`, `*italic*`, `[links](url)`, `# headers`, `` `code` ``) and non-vocalized emoji before TTS. | `"ราคา 50 บาท 🍜!"` → `"ราคา 50 บาท!"`. `uv run pytest tests/text/test_cleaner.py`. |
+| TTS-030 | Multilingual sentence boundary test suite | TTS-016–TTS-029 | 50 complex dialog samples per language (JA, ZH, TH, VI, KO). | 100% pass rate across conversational transcripts, numbers, questions, mixed scripts. `uv run pytest tests/core/test_token_buffer.py -v`. |
+
+## Related packages
+- [[t04-moonshot-client-resilience]] — receives this module's punctuated sentence chunks

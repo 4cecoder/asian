@@ -1,0 +1,34 @@
+---
+id: t03-scaffolding-settings
+title: "Domain 1: Project Scaffolding, uv Package Management & Settings"
+track: "Track 3: Python 3.13 Backend Architecture, FastAPI Core & API Gateway"
+task_range: "PY-001–PY-010"
+status: complete
+tags: [python, fastapi, uv, config, tooling]
+related: [t03-lifespan-connections, t03-middleware-suite]
+---
+
+# Domain 1: Project Scaffolding, uv Package Management & Settings
+
+Lays the ground floor of the FastAPI backend: package management with `uv`,
+linting/type-checking config, test runner config, and a typed
+`pydantic-settings` configuration tree that every later domain reads from.
+
+## Tasks
+
+| ID | Title | Depends on | Spec (condensed) | Acceptance check |
+|---|---|---|---|---|
+| PY-001 | `uv` env setup & `pyproject.toml` deps | None | Create `pyproject.toml` for Python 3.13 with `uv` build backend. Pin `fastapi>=0.115.0`, `pydantic>=2.9.0`, `pydantic-settings>=2.5.0`, `uvicorn[standard]>=0.31.0`, `structlog>=24.4.0`, `httpx>=0.27.2`, `redis>=5.1.0`, `prometheus-client>=0.21.0`, `opentelemetry-api>=1.27.0`, `opentelemetry-sdk>=1.27.0`, `opentelemetry-instrumentation-fastapi>=0.48b0`. Set `.python-version` to `3.13.0`. | `uv sync` builds a clean virtualenv in < 5s. `uv run python -c "import fastapi, pydantic; print(fastapi.__version__)"` prints a version. |
+| PY-002 | Ruff linter & formatter config | PY-001 | Create `ruff.toml`, target `py313`. Enable rule sets `E, F, W, C90, I, N, UP, B, A, COM, C4, DTZ, T10, SIM, TCH`. Enforce line length 100, double quotes, strict import sort. | `uv run ruff check .` and `uv run ruff format --check .` run with 0 config warnings. |
+| PY-003 | Mypy strict type checking | PY-001 | Create `mypy.ini`, `python_version = 3.13`. Set `strict = True` plus `disallow_untyped_defs`, `disallow_incomplete_defs`, `check_untyped_defs`, `disallow_untyped_decorators`, `no_implicit_optional`, `warn_redundant_casts`, `warn_unused_ignores`, `warn_return_any` all `True`. Add `plugins = pydantic.mypy`. | `uv run mypy app tests` runs with 0 type errors. |
+| PY-004 | Pytest, pytest-asyncio & coverage config | PY-001 | Create `pytest.ini`: `asyncio_mode = auto`, `asyncio_default_fixture_loop_scope = function`, `testpaths = ["tests"]`. Add coverage flags `--cov=app --cov-report=term-missing --cov-report=xml --cov-fail-under=90`. | `uv run pytest` discovers test dirs and starts asyncio loops without warnings. |
+| PY-005 | Pydantic v2 `BaseSettings` env model | PY-001 | Create `app/core/config.py` defining `AppSettings(BaseSettings)` with `model_config = SettingsConfigDict(env_file=".env", env_nested_delimiter="__", extra="ignore")`. Root fields: `ENVIRONMENT: Literal["development","staging","production"] = "development"`, `DEBUG: bool = False`, `PROJECT_NAME`, `VERSION: str = "1.0.0"`. | Unit test confirms defaults and `.env` override: `uv run pytest tests/core/test_config.py -k test_base_settings`. |
+| PY-006 | Nested server/network config schema | PY-005 | Add `ServerSettings(BaseModel)`: `HOST="0.0.0.0"`, `PORT=8000`, `WORKERS=2`, `RELOAD=False`, `KEEP_ALIVE_TIMEOUT=65`. Validate `1024 ≤ PORT ≤ 65535`. | Invalid ports raise `ValidationError`. `uv run pytest tests/core/test_config.py -k test_server_settings`. |
+| PY-007 | Security, CORS & crypto key models | PY-005 | Add `SecuritySettings(BaseModel)`: `SECRET_KEY: SecretStr`, `ALGORITHM="HS256"`, `ACCESS_TOKEN_EXPIRE_MINUTES=1440`, `CORS_ORIGINS: list[AnyHttpUrl] = []`, `CORS_ALLOW_CREDENTIALS=True`. Validator requires `SECRET_KEY` ≥ 32 chars in production. | Short secret keys in prod trigger a validation error. `uv run pytest tests/core/test_config.py -k test_security_settings`. |
+| PY-008 | External service & cloud storage settings | PY-005 | Add `ServiceSettings(BaseModel)`: `MOONSHOT_API_KEY: SecretStr`, `MOONSHOT_BASE_URL: HttpUrl = "https://api.moonshot.cn/v1"`, `REDIS_URL: RedisDsn = "redis://localhost:6379/0"`, `S3_ENDPOINT_URL`, `S3_BUCKET="lingo-audio-prod"`, `S3_ACCESS_KEY`, `S3_SECRET_KEY: SecretStr`. | DSN/URL formats validate fully. `uv run pytest tests/core/test_config.py -k test_service_settings`. |
+| PY-009 | Secret obfuscation & safe repr | PY-005–PY-008 | Implement custom `__repr__` and `safe_dump()` on `AppSettings` so `MOONSHOT_API_KEY`, `SECRET_KEY`, `S3_SECRET_KEY` never leak into logs/terminal. | `repr(settings)` prints `***` for every `SecretStr` field. `uv run pytest tests/core/test_config.py -k test_secret_redaction`. |
+| PY-010 | Dynamic settings factory & DI | PY-005–PY-009 | Implement `@lru_cache` function `get_settings() -> AppSettings`, exposed as a FastAPI dependency for constructor injection. | `get_settings()` returns a cached singleton; test fixtures can override it. `uv run pytest tests/core/test_config.py -k test_get_settings_singleton`. |
+
+## Related packages
+- [[t03-lifespan-connections]] — consumes `get_settings()` at startup
+- [[t03-middleware-suite]] — reads `SecuritySettings` for CORS

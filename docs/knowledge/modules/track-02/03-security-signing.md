@@ -1,0 +1,50 @@
+---
+id: t02-security-signing
+title: "Sub-Track C: Security Hardening, Vulnerability Scanning & Image Signing"
+track: "Track 2: Docker Containerization, Multi-Arch Image Pipelines & GitHub Actions CI/CD"
+task_range: "TASK-CI-041–TASK-CI-060"
+status: complete
+tags: [trivy, cosign, sbom, sigstore, gitleaks, kyverno]
+related: [t02-multiarch-buildx, t02-ci-quality-gates]
+---
+
+# Sub-Track C: Security Hardening, Vulnerability Scanning & Image Signing
+
+The supply-chain security layer on top of the built images: Trivy scans
+for both images with SARIF upload to GitHub's Security tab, CRITICAL-CVE
+build gating, CycloneDX/SPDX SBOM generation, Cosign keyless signing via
+GitHub OIDC (Fulcio + Rekor transparency log) with a Kyverno in-cluster
+policy that blocks unsigned pods, Gitleaks secret scanning (CI + pre-commit),
+weekly scheduled re-scans of production digests, a CIS-benchmark
+compliance script, Bun/Python dependency audits, a documented CVE
+exception allowlist, and a security-alert webhook forwarder — unified in
+one unified scan-and-sign workflow.
+
+## Tasks
+
+| ID | Title | Depends on | Spec (condensed) | Acceptance check |
+|---|---|---|---|---|
+| TASK-CI-041 | Trivy Vulnerability Scanner Action for Next.js Container Image | TASK-CI-028 | Add `aquasecurity/trivy-action@master`: scan `lingo-frontend`, `format table`, `exit-code 1`, `ignore-unfixed true`, `severity HIGH,CRITICAL`. | `trivy image --severity HIGH,CRITICAL lingo-frontend:test` runs after build, outputs the vulnerability table. |
+| TASK-CI-042 | Trivy Vulnerability Scanner Action for Python Microservice Image | TASK-CI-029 | Same Trivy scan step for `lingo-worker`, auditing OS-level and pip-package-level vulnerabilities. | `trivy image --severity HIGH,CRITICAL lingo-worker:test` flags any critical CVEs. |
+| TASK-CI-043 | SARIF Report Upload to GitHub Security Tab | TASK-CI-041, TASK-CI-042 | Configure Trivy `format: 'sarif'`, `output: 'trivy-results.sarif'`; add `github/codeql-action/upload-sarif@v3` with that file. | Scan results populate the repo's Security → Code Scanning alerts dashboard. |
+| TASK-CI-044 | Trivy Severity Threshold Enforcement & CRITICAL/HIGH Vulnerability Gating | TASK-CI-041 | Fail the CI job on any unmitigated CRITICAL CVE with an available patch. | `trivy image --exit-code 1 --severity CRITICAL` blocks deployment on unpatched critical CVEs. |
+| TASK-CI-045 | Software Bill of Materials (SBOM) Generation via Trivy | TASK-CI-028, TASK-CI-029 | Generate CycloneDX SBOM (`format: 'cyclonedx-json'`, `output: 'sbom-web.cdx.json'`) and SPDX SBOM (`format: 'spdx-json'`, `output: 'sbom-api.spdx.json'`). | `test -s sbom-web.cdx.json && jq .bomFormat sbom-web.cdx.json \| grep "CycloneDX"` — valid JSON covering all installed packages. |
+| TASK-CI-046 | Attaching and Publishing SBOM to GHCR via Cosign | TASK-CI-045, TASK-CI-047 | `cosign attach sbom --sbom sbom-web.cdx.json --type cyclonedx ghcr.io/<repo>/lingo-frontend:<version>`. | `cosign download sbom ghcr.io/<repo>/lingo-frontend:latest` finds the SBOM linked to the digest. |
+| TASK-CI-047 | Cosign Binary Installation & Setup Action | None | Add `sigstore/cosign-installer@v3.5.0` to the workflows. | `cosign version` — executable available on `$PATH`. |
+| TASK-CI-048 | GitHub Actions OIDC Token Permission Configuration | None | Top-level workflow `permissions: { contents: read, packages: write, id-token: write, security-events: write }`. | Runner obtains a short-lived JWT from `ACTIONS_ID_TOKEN_REQUEST_URL` — valid Sigstore OIDC identity token. |
+| TASK-CI-049 | Keyless Container Image Signing with Cosign & GitHub OIDC | TASK-CI-047, TASK-CI-048 | `cosign sign --yes -a "repo=<repo>" -a "sha=<sha>" -a "run_id=<run_id>" ghcr.io/<repo>/lingo-frontend@<digest>`. | Signature + certificate recorded in Fulcio CA and Rekor transparency log; `cosign verify --certificate-identity-regexp=... --certificate-oidc-issuer=https://token.actions.githubusercontent.com` passes. |
+| TASK-CI-050 | Cosign Signature Verification Step in CI Pipeline | TASK-CI-049 | Post-sign CD step: verify the signature before triggering the K8s rollout. | `cosign verify ghcr.io/<repo>/lingo-frontend@<digest>` exits 0; fails if the digest was altered. |
+| TASK-CI-051 | Kyverno In-Cluster Image Signature Verification Policy Template | TASK-CI-049 | Create `k8s/security/kyverno-verify-images.yaml`: `ClusterPolicy` requiring every pod in `lingo-prod` to carry a valid Cosign signature from the repo's OIDC subject. | `kubectl apply --dry-run=client -f k8s/security/kyverno-verify-images.yaml` passes schema validation; unsigned images are blocked from scheduling. |
+| TASK-CI-052 | Gitleaks Secret Scanning in GitHub Actions | None | Add `gitleaks/gitleaks-action@v2` to `.github/workflows/pull-request-ci.yml`, scanning PR commits for exposed Moonshot/AWS/Convex/JWT secrets. | `gitleaks detect --source . --verbose` blocks PR merge on plaintext secret matches. |
+| TASK-CI-053 | Pre-commit Hook for Gitleaks & Hadolint Syntax Enforcement | TASK-CI-014, TASK-CI-052 | Create `.pre-commit-config.yaml`: hooks `hadolint/hadolint`, `gitleaks/gitleaks`, `astral-sh/ruff-pre-commit`, `pre-commit/mirrors-prettier`. | `pre-commit run --all-files` runs all security hooks locally. |
+| TASK-CI-054 | Automated Container Vulnerability Weekly Scheduled Scan Workflow | TASK-CI-041, TASK-CI-042 | Create `.github/workflows/security-schedule.yml`, cron every Sunday midnight: re-scan active production GHCR digests for new zero-day CVEs. | `gh workflow run security-schedule.yml` triggers and notifies via GitHub Security alerts on new CVEs. |
+| TASK-CI-055 | Non-Root UID Validation & Container Compliance Script | TASK-CI-005, TASK-CI-011 | Create `scripts/verify-container-security.sh`: inspect image metadata for non-root user, no setuid binaries, verified read-only capability. | `bash scripts/verify-container-security.sh` exits 0 only if both images pass CIS Docker Benchmark checks. |
+| TASK-CI-056 | Dependency Vulnerability Audit for Bun | None | Run `bun pm audit` (or `npm audit --omit=dev`) in `web/` within CI. | `cd web && bun pm audit` — build passes only with zero critical advisories. |
+| TASK-CI-057 | Dependency Vulnerability Audit for Python | TASK-CI-008 | Run `uv audit` or `pip-audit` against `api/pyproject.toml` in CI. | `cd api && uv run pip-audit` — build passes with 0 known CVEs. |
+| TASK-CI-058 | Automated CVE Suppression & Exception Allowlist Management | TASK-CI-041 | Create `.trivyignore` documenting approved temporary exceptions with expiry dates and justification (e.g. CVEs with no upstream fix yet). | `trivy image --ignorefile .trivyignore` honors the rules, logs ignored IDs. |
+| TASK-CI-059 | Automated GitHub Security Advisory Alert Forwarder | TASK-CI-043 | Create `.github/workflows/security-alert-forwarder.yml` on `code_scanning_alert`: dispatch a structured payload to a developer webhook for new Critical findings. | Webhook payload fires on a new security alert. |
+| TASK-CI-060 | Consolidated Security & Supply-Chain Attestation Workflow | TASK-CI-041…059 | Create `.github/workflows/security-scan-and-sign.yml` chaining Trivy scan → SBOM generation → Cosign keyless signing → Rekor verification. | `gh workflow view security-scan-and-sign.yml` — full pipeline completes in < 2 minutes. |
+
+## Related packages
+- [[t02-multiarch-buildx]] — the build pipeline that produces the images this sub-track scans and signs.
+- [[t02-ci-quality-gates]] — the broader PR quality-gate pipeline this security scanning feeds into.

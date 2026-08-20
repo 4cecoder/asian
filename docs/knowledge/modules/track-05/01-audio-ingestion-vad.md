@@ -1,0 +1,48 @@
+---
+id: t05-audio-ingestion-vad
+title: "Sub-Domain 1: Audio Ingestion, Preprocessing, Normalization & Silero VAD"
+track: "Track 5: Speech-to-Text (STT), Pronunciation Assessment & Pitch/Tone Analysis"
+task_range: "STT-001–STT-020"
+status: complete
+tags: [stt, audio, vad, preprocessing, backend]
+related: [t05-whisper-inference-alignment, t04-audio-ingestion-decoding, package-format]
+---
+
+# Sub-Domain 1: Audio Ingestion, Preprocessing, Normalization & Silero VAD
+
+Everything the STT pipeline needs before a single word gets transcribed:
+decode the incoming audio, resample and normalize it, filter noise, buffer
+it, and detect when the user is actually speaking. This is the front door
+for both the Faster-Whisper transcription path and the Yin pitch/tone path
+downstream — both depend on a clean 16kHz mono signal and accurate speech
+boundaries from Silero VAD.
+
+## Tasks
+
+| ID | Title | Depends on | Spec (condensed) | Acceptance check |
+|---|---|---|---|---|
+| STT-001 | Container Demuxing & Decoding Pipeline | None | Create `backend/app/audio/demuxer.py`. Use PyAV (`av`) to parse WebM Opus, OGG, WAV, MP3, AAC, FLAC from raw bytes. Implement `AudioDemuxer.decode_bytes(payload: bytes, format_hint: str = None) -> np.ndarray`. | `uv run pytest tests/audio/test_demuxer.py -v` verifies float32 conversion across 6 containers. |
+| STT-002 | Polyphase Resampling & Channel Downmixing | STT-001 | Create `backend/app/audio/resampler.py`. Implement `AudioResampler.to_mono_16k(audio, orig_sr) -> np.ndarray` using `scipy.signal.resample_poly` (polyphase, no aliasing). | `uv run pytest tests/audio/test_resampler.py -v` validates SNR > 60 dB, 0–8kHz passband preserved. |
+| STT-003 | EBU R128 Loudness Normalization Engine | STT-002 | Create `backend/app/audio/normalizer.py`. Target integrated loudness -16.0 LUFS. Compute gating thresholds and gain ΔG = L_target − L_measured in float32. | `uv run pytest tests/audio/test_normalizer.py -v` validates -16 LUFS ± 0.5 LUFS across variable input gains. |
+| STT-004 | Soft-Knee Peak Limiter & Dynamic Range Compressor | STT-003 | Create `backend/app/audio/limiter.py`. `SoftKneeLimiter.process(audio, threshold_db=-1.0, knee_width_db=3.0, attack_ms=5.0, release_ms=50.0)` to stop clipping after normalization. | `uv run pytest tests/audio/test_limiter.py -v` verifies peak never exceeds -1.0 dBFS, 0 distortion harmonics. |
+| STT-005 | Low-Pass & High-Pass Pre-Emphasis Filtering | STT-002 | Create `backend/app/audio/filters.py`. Butterworth high-pass (fc=70Hz, 4th order) removes DC offset/rumble. Pre-emphasis `y[n] = x[n] − 0.97·x[n-1]` boosts HF fricatives for tone analysis. | `uv run pytest tests/audio/test_filters.py -v` verifies roll-off below 70Hz and +6 dB/octave HF boost. |
+| STT-006 | Ring Buffer & Audio Frame Chunking Engine | STT-002 | Create `backend/app/audio/buffer.py`. `AudioRingBuffer` (default capacity 30s @16kHz), thread-safe push/pop of 512-sample (32ms) and 1024-sample (64ms) frames, zero-copy numpy views. | `uv run pytest tests/audio/test_buffer.py -v` verifies zero frame loss under concurrent read/write. |
+| STT-007 | Jitter Buffer & Packet Loss Concealment for WebSockets | STT-006 | Create `backend/app/audio/jitter.py`. `AdaptiveJitterBuffer` with sequence tracking, dynamic delay (20–100ms based on inter-arrival time), waveform-repetition packet loss concealment. | `uv run pytest tests/audio/test_jitter.py -v` verifies reordering and synthetic concealment on drops. |
+| STT-008 | Silero VAD ONNX Runtime Model Loader | None | Create `backend/app/vad/silero_loader.py`. `SileroVADLoader` wraps `silero_vad.onnx` (v5) via ONNX Runtime CPU/CUDA. Manages recurrent state tensors h ∈ ℝ^(2×1×64), c ∈ ℝ^(2×1×64). | `uv run pytest tests/vad/test_silero_loader.py -v` verifies session init and tensor shapes. |
+| STT-009 | Silero VAD Streaming State Machine (512-Sample Windows) | STT-008 | Create `backend/app/vad/streaming.py`. `StreamingVAD.process_chunk(chunk_512) -> float` returns P(speech) ∈ [0,1] in under 1.5ms per chunk. | `uv run pytest tests/vad/test_streaming_vad.py -v` validates speech-probability sequence on test files. |
+| STT-010 | Adaptive Noise Floor Estimation & SNR Calculator | STT-009 | Create `backend/app/vad/noise.py`. Minimum-statistics spectral noise floor over 1.5s sliding windows; compute SNR (dB); adjust VAD probability thresholds dynamically. | `uv run pytest tests/vad/test_noise.py -v` verifies accurate SNR at 0dB, 10dB, 20dB noise. |
+| STT-011 | Speech Segment Boundary Detector (Start-of-Speech / Hangover) | STT-009, STT-010 | Create `backend/app/vad/boundaries.py`. `SpeechBoundaryDetector`: threshold_speech=0.5, min_speech_duration_ms=250, speech_hangover_ms=400 (600ms for tonal final particles like Thai khrap/kha). | `uv run pytest tests/vad/test_boundaries.py -v` verifies correct SPEECH_START/SPEECH_END emission. |
+| STT-012 | Minimum Speech Duration & False Trigger Gating | STT-011 | Create `backend/app/vad/gating.py`. Reject impulsive non-speech (<120ms mic pops, coughs, clicks) via duration + energy-variance thresholding. | `uv run pytest tests/vad/test_gating.py -v` verifies rejection of impulsive non-speech events. |
+| STT-013 | Zero-Copy Audio Slicing & Shared Memory Allocation | STT-006 | Create `backend/app/audio/memory.py`. Use `multiprocessing.shared_memory` or numpy memmaps for IPC between ingestion workers and STT/pitch inference workers. | `uv run pytest tests/audio/test_memory.py -v` verifies zero-copy slicing throughput > 1 GB/s. |
+| STT-014 | WAV / Opus / PCM16 Header & Payload Serializers | STT-002 | Create `backend/app/audio/codec.py`. Serialize/deserialize between raw PCM16, RIFF WAV headers, Opus frames. | `uv run pytest tests/audio/test_codec.py -v` verifies bit-level header fidelity and Opus roundtrip. |
+| STT-015 | Audio Preprocessing Benchmark & Latency Profiler | STT-001…STT-014 | Create `backend/app/audio/benchmarks.py`. Measure end-to-end latency from WebSocket packet receive to normalized 16kHz VAD-gated tensor. | `uv run pytest tests/audio/test_benchmarks.py -v` verifies p99 preprocessing latency under 5.0ms. |
+| STT-016 | VAD Confidence Heatmap & Telemetry Exporter | STT-011 | Create `backend/app/vad/telemetry.py`. Generate a JSON timeline of speech confidence, energy curves, boundary markers for UI debugging. | `uv run pytest tests/vad/test_telemetry.py -v` validates JSON timeline schema. |
+| STT-017 | Multi-Threaded Audio Ingestion Worker Pool | STT-006, STT-009 | Create `backend/app/audio/worker.py`. `AudioWorkerPool` manages worker threads for concurrent WebSocket client streams. | `uv run pytest tests/audio/test_worker.py -v` verifies 100 concurrent simulated streams, no CPU starvation. |
+| STT-018 | Audio Pipeline Configuration & Pydantic Validation Models | None | Create `backend/app/schemas/audio_pipeline.py` with `AudioPipelineConfig`, `VADSettings`, `LimiterConfig`, `ResamplingParams`. | `uv run pytest tests/schemas/test_audio_pipeline_schema.py -v` validates config + default fallbacks. |
+| STT-019 | Unit Test Suite for Audio Demuxing, Resampling & Filtering | STT-001…STT-005 | Create `backend/tests/audio/test_preprocessing.py`, end-to-end signal-processing validation suite. | `uv run pytest backend/tests/audio/test_preprocessing.py` passes with 100% test coverage. |
+| STT-020 | Integration Test Suite for Silero VAD Streaming & Segment Gating | STT-008…STT-012 | Create `backend/tests/vad/test_silero_vad.py`, streaming speech segmentation across multilingual sample datasets. | `uv run pytest backend/tests/vad/test_silero_vad.py` passes with zero frame boundary drift. |
+
+## Related packages
+- [[t05-whisper-inference-alignment]] — consumes the VAD-gated, normalized audio this package produces.
+- [[t05-pitch-tone-classification]] — Yin pitch extraction also runs on STT-002's resampled 16kHz signal.
+- [[t04-audio-ingestion-decoding]] — Track 4's TTS pipeline has an analogous (separate) decode/resample stage.

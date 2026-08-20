@@ -1,0 +1,38 @@
+---
+id: t04-waveform-cdn-observability
+title: "Module 7: Waveform Peaks, CDN Caching & Observability"
+track: "Track 4: Moonshot TTS Engine, Audio Processing Pipeline, Storage & Streaming"
+task_range: "TTS-089–TTS-100"
+status: complete
+tags: [tts, waveform, cdn, prometheus, opentelemetry, e2e]
+related: [t04-storage-uploads, t04-moonshot-client-resilience]
+---
+
+# Module 7: Waveform Peaks, CDN Caching & Observability
+
+Closes the TTS track: compact waveform peak data for UI visualizers, CDN
+cache-control/purge/ETag handling, Prometheus + OpenTelemetry
+instrumentation for the whole audio pipeline, the unified `/api/v1/audio`
+router, and the golden-master end-to-end test that exercises every prior
+module in one run.
+
+## Tasks
+
+| ID | Title | Depends on | Spec (condensed) | Acceptance check |
+|---|---|---|---|---|
+| TTS-089 | 100-point normalized waveform peak extractor | TTS-033 | `backend/app/core/waveform/extractor.py`. `extract_waveform_peaks(audio_data, num_points=100)`: 100 equal time slices, RMS/peak amplitude normalized to `[0.0, 1.0]`. | Generates exactly 100 floats for the UI canvas visualizer envelope. `uv run pytest tests/waveform/test_extractor.py`. |
+| TTS-090 | Min/max float peak array compressor | TTS-089 | `backend/app/core/waveform/compressor.py`. `compress_peaks_to_int8(peaks) -> bytes`, maps `[0.0,1.0]` to uint8 `[0,255]`, 100 bytes total. | Waveform payload shrinks to 100 bytes for fast JSON transmission. `uv run pytest tests/waveform/test_compressor.py`. |
+| TTS-091 | JSON/binary waveform payload serializer | TTS-089, TTS-090 | `backend/app/core/waveform/serializer.py`. `WaveformPayload(points, duration_seconds, sample_count)`. | Valid JSON schema for frontend rendering. `uv run pytest tests/waveform/test_serializer.py`. |
+| TTS-092 | Waveform extraction API endpoint | TTS-089, TTS-091 | `backend/app/routers/waveform.py`. `POST /api/v1/audio/waveform` accepts a file upload or S3 key, returns `WaveformPayload`. | Computes and returns waveform peaks in < 10ms. `uv run pytest tests/routers/test_waveform_router.py`. |
+| TTS-093 | CDN cache-control header builder | None | `backend/app/core/cdn/headers.py`. `build_cdn_cache_headers(is_immutable=True, max_age_days=365)`: `Cache-Control: public, max-age=31536000, immutable`, `CDN-Cache-Control`, `Vary: Accept-Encoding`. | Audio assets cache permanently at edge PoPs. `uv run pytest tests/cdn/test_headers.py`. |
+| TTS-094 | CDN invalidation & purge webhook dispatcher | None | `backend/app/core/cdn/purge.py`. `purge_cdn_cached_audio(urls) -> bool`, dispatches purge calls to Cloudflare/Volterra Edge API. | Flushes stale cache entries when voice lines are re-recorded. `uv run pytest tests/cdn/test_purge.py`. |
+| TTS-095 | Audio asset ETag & 304 conditional engine | None | `backend/app/core/cdn/etag.py`. `evaluate_audio_etag(request_etag, audio_sha256) -> bool`, returns 304 on ETag match. | Eliminates redundant byte transfers on repeat requests. `uv run pytest tests/cdn/test_etag.py`. |
+| TTS-096 | Prometheus telemetry for audio pipeline | None | `backend/app/core/metrics/audio_metrics.py`. `tts_synthesis_duration_seconds`, `audio_normalization_duration_seconds` (Histograms), `audio_lufs_measured` (Histogram, `[-30,-25,-20,-16,-12,-8]`), `audio_stream_active_connections` (Gauge), `audio_bytes_served_total` (Counter). | Scrapes cleanly at `/metrics` in Prometheus exposition format. `uv run pytest tests/metrics/test_audio_metrics.py`. |
+| TTS-097 | End-to-end latency tracing & span instrumentation | None | `backend/app/core/metrics/tracing.py`. OTel spans: `text_buffering`, `moonshot_tts_api`, `audio_resample`, `audio_normalize`, `s3_upload`. | Injects trace-parent headers, logs per-stage latency for every synthesis request. `uv run pytest tests/metrics/test_tracing.py`. |
+| TTS-098 | Unified audio router aggregator | TTS-009, TTS-028, TTS-072, TTS-073, TTS-092 | `backend/app/routers/audio_v1.py`. Aggregates `/api/v1/audio/{synthesize,stream,waveform,upload,ws/live}`. | Router mounts with OpenAPI docs and Swagger specs. `uv run pytest tests/routers/test_audio_v1_router.py`. |
+| TTS-099 | High-concurrency stress & load test suite | TTS-001–TTS-098 | 100 simultaneous multi-sentence synthesis requests via `asyncio.gather`. | No socket exhaustion, memory leaks, or unhandled exceptions across all 100. `uv run pytest tests/e2e/test_audio_stress.py -v`. |
+| TTS-100 | Golden-master end-to-end pipeline verification | TTS-001–TTS-099 | Full pipeline: CJK token stream → sentence segmentation (2 blocks) → Moonshot synthesis → decode/resample 16kHz mono → normalize -16.0 LUFS, limit -1.0 dBTP → Opus encode → upload to R2 with metadata → 100-point waveform → CDN headers. | Entire lifecycle completes in < 350ms with full artifact integrity. `uv run pytest tests/e2e/test_audio_pipeline_e2e.py -v --durations=10`. |
+
+## Related packages
+- [[t04-storage-uploads]] — waveform/CDN steps operate on assets stored there
+- [[t04-moonshot-client-resilience]] — TTS-100's golden-master test exercises the whole chain back to this module

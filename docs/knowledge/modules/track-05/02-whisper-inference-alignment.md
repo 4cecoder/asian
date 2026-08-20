@@ -1,0 +1,46 @@
+---
+id: t05-whisper-inference-alignment
+title: "Sub-Domain 2: Faster-Whisper Inference Engine & Edge STT Alignment"
+track: "Track 5: Speech-to-Text (STT), Pronunciation Assessment & Pitch/Tone Analysis"
+task_range: "STT-021–STT-040"
+status: complete
+tags: [stt, whisper, ctranslate2, inference, backend]
+related: [t05-audio-ingestion-vad, t05-phoneme-g2p, t03-observability-metrics]
+---
+
+# Sub-Domain 2: Faster-Whisper Inference Engine & Edge STT Alignment
+
+Turns VAD-gated audio into transcribed text: loads and quantizes
+Faster-Whisper/CTranslate2, forces the correct target language, extracts
+word timestamps, filters hallucinations, streams interim partial results,
+and exposes the REST endpoints the rest of the platform calls.
+
+## Tasks
+
+| ID | Title | Depends on | Spec (condensed) | Acceptance check |
+|---|---|---|---|---|
+| STT-021 | Faster-Whisper / CTranslate2 Engine Loader & Quantization Config | None | Create `backend/app/stt/whisper_engine.py`. Wrap `faster_whisper.WhisperModel` with dynamic quantization (`int8_float16`, `int8`, `float16`) and device selection (`cuda`, `cpu`). | `uv run pytest tests/stt/test_whisper_engine.py -v` verifies model loading and VRAM/RAM footprint. |
+| STT-022 | Multi-Language Forced Token Injection (zh, ja, th, vi, ko) | STT-021 | Create `backend/app/stt/token_forcing.py`. `LanguageTokenForcer` builds decoder prompt tokens (`<\|zh\|>`, `<\|ja\|>`, `<\|th\|>`, `<\|vi\|>`, `<\|ko\|>`) plus `<\|transcribe\|>`/`<\|notimestamps\|>` suppression. | `uv run pytest tests/stt/test_token_forcing.py -v` verifies forced token IDs for all 5 languages. |
+| STT-023 | Cross-Attention Word-Level Timestamp Extractor | STT-021 | Create `backend/app/stt/timestamps.py`. Extract word/token start-end timestamps via cross-attention alignment (`word_timestamps=True`). | `uv run pytest tests/stt/test_timestamps.py -v` verifies monotonic timestamps, character-boundary accuracy. |
+| STT-024 | Whisper Hallucination & Repetition Suppression Filter | STT-021 | Create `backend/app/stt/hallucination_filter.py`. Detect repetitive n-gram loops, silent-audio hallucinations (e.g. "Thank you for watching"), compression-ratio filter (CR > 2.4). | `uv run pytest tests/stt/test_hallucination_filter.py -v` verifies known hallucination patterns filtered. |
+| STT-025 | Prompt Engineering & Custom Context Bias Dictionary | STT-021 | Create `backend/app/stt/context_bias.py`. Build situational `initial_prompt` prefixes with domain travel vocabulary (Thai Baht, Japanese Izakaya, Vietnamese Bánh mì). | `uv run pytest tests/stt/test_context_bias.py -v` verifies recognition accuracy gain on specialized terms. |
+| STT-026 | VAD-Guided Segment Chunking & Parallel STT Worker Dispatch | STT-011, STT-021 | Create `backend/app/stt/segment_dispatcher.py`. Segment speech streams into discrete utterance chunks by VAD boundaries; dispatch to worker queues. | `uv run pytest tests/stt/test_segment_dispatcher.py -v` verifies dispatch drops no speech buffers. |
+| STT-027 | Streaming Interim Partial Transcription Generator | STT-021, STT-026 | Create `backend/app/stt/streaming_stt.py`. Low-latency sliding-window decoding for interim feedback (<250ms) alongside a final high-accuracy beam-search pass. | `uv run pytest tests/stt/test_streaming_stt.py -v` verifies interim token emission rate. |
+| STT-028 | Confidence Score Calibration & OOV Detection | STT-021 | Create `backend/app/stt/confidence.py`. Convert log-probability tokens to calibrated confidence C ∈ [0,100]; flag out-of-vocabulary phonetic segments. | `uv run pytest tests/stt/test_confidence.py -v` verifies calibration against ground-truth audio. |
+| STT-029 | Whisper Model Warmup & Memory Pool Pre-Allocation | STT-021 | Create `backend/app/stt/warmup.py`. Run synthetic zero-padded inferences at container boot to pre-warm CUDA kernels and CTranslate2 buffers. | `uv run pytest tests/stt/test_warmup.py -v` verifies zero cold-start latency penalty on first request. |
+| STT-030 | Fallback Edge STT API Client with Circuit Breaking | None | Create `backend/app/stt/fallback_client.py`. Use `tenacity` retry + circuit breaker to fall back to an external edge STT API when local GPU/CPU load exceeds 95%. | `uv run pytest tests/stt/test_fallback_client.py -v` verifies breaker trip and recovery. |
+| STT-031 | Asian Script Normalization & Punctuation Stripper | STT-021 | Create `backend/app/stt/text_normalizer.py`. Normalize full/half-width chars (NFKC), strip decorative Asian punctuation (。、？！〜), preserve tone markers. | `uv run pytest tests/stt/test_text_normalizer.py -v` verifies clean normalization across CJK and Thai. |
+| STT-032 | Segment Merger & Sentence Boundary Reconstructor | STT-026, STT-031 | Create `backend/app/stt/merger.py`. Merge multi-chunk transcription segments into complete sentence trees with unified timestamp offsets. | `uv run pytest tests/stt/test_merger.py -v` verifies chronological timestamp continuity across chunks. |
+| STT-033 | Sub-Word Token to Character Alignment Map | STT-023 | Create `backend/app/stt/alignment.py`. Map BPE sub-word tokens to discrete Asian characters/syllables (Hanzi, Kanji, Kana, Hangul, Thai clusters). | `uv run pytest tests/stt/test_alignment.py -v` verifies exact 1:1 character-timestamp mapping. |
+| STT-034 | Multilingual Language Identification (LID) Gate | STT-021 | Create `backend/app/stt/lid_gate.py`. Verify spoken language matches expected target; compute P(lang \| audio). | `uv run pytest tests/stt/test_lid_gate.py -v` verifies detection and mismatch flagging. |
+| STT-035 | STT Inference Cache with LRU & Audio Fingerprint Matching | STT-021 | Create `backend/app/stt/cache.py`. Compute acoustic perceptual hash (AcoustID/chroma fingerprint) of short repetitive flashcard utterances to serve cached transcripts instantly. | `uv run pytest tests/stt/test_cache.py -v` verifies cache-hit latency < 2ms. |
+| STT-036 | Prometheus Metrics for STT Latency, RTF & Token TPS | STT-021 | Create `backend/app/stt/metrics.py`. Export gauges/histograms for Real-Time Factor (RTF = duration_proc / duration_audio), token throughput, WER. | `uv run pytest tests/stt/test_metrics.py -v` validates Prometheus metrics format. |
+| STT-037 | FastAPI STT REST Endpoints | STT-021…STT-036 | Create `backend/app/routers/stt.py`. Expose `POST /api/v1/stt/transcribe` and `POST /api/v1/stt/detect-language`. | `uv run pytest tests/routers/test_stt_router.py -v` validates responses and error codes. |
+| STT-038 | STT Request / Response Pydantic v2 DTO Schemas | None | Create `backend/app/schemas/stt_dto.py` with `TranscriptionRequest`, `WordTimestampDTO`, `TranscriptionResponse`, `LIDResponse`. | `uv run pytest tests/schemas/test_stt_dto.py -v` validates schema validation. |
+| STT-039 | Unit Test Suite for Faster-Whisper Model Loader & Token Forcing | STT-021, STT-022 | Create `backend/tests/stt/test_whisper_engine.py` testing model loading and token forcing. | `uv run pytest backend/tests/stt/test_whisper_engine.py` passes with 100% assertions. |
+| STT-040 | Integration Test Suite for End-to-End Transcription & Timestamp Alignment | STT-021…STT-038 | Create `backend/tests/stt/test_stt_pipeline.py`, end-to-end validation against Japanese, Mandarin, Thai, Vietnamese, Korean samples. | `uv run pytest backend/tests/stt/test_stt_pipeline.py` passes with CER < 5%. |
+
+## Related packages
+- [[t05-audio-ingestion-vad]] — upstream: supplies the normalized, VAD-gated audio this engine consumes.
+- [[t05-phoneme-g2p]] — downstream: consumes transcribed text + timestamps for phonetic decomposition.
+- [[t03-observability-metrics]] — shares the Prometheus/OpenTelemetry conventions used by STT-036.
