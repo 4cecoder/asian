@@ -1,0 +1,36 @@
+pre-commit:
+  parallel: true
+  commands:
+    format:
+      glob: "*.{js,jsx,ts,tsx,mjs,json,md,css}"
+      run: bunx prettier --write {staged_files} && git add {staged_files}
+    lint-web:
+      root: "apps/web/"
+      glob: "apps/web/**/*.{ts,tsx,js,jsx}"
+      run: bunx eslint --fix {staged_files} && git add {staged_files}
+    ktlint:
+      glob: "apps/android/**/*.{kt,kts}"
+      run: |
+        if command -v ktlint >/dev/null 2>&1; then
+          ktlint -F {staged_files} && git add {staged_files}
+        else
+          echo "ktlint not installed locally — skipping; CI still enforces it" >&2
+        fi
+
+commit-msg:
+  commands:
+    conventional-format:
+      run: |
+        head=$(head -n1 {1})
+        pattern='^(feat|fix|chore|docs|style|refactor|perf|test|build|ci|revert)(\([a-z0-9./_-]+\))?!?: .{1,88}$'
+        if ! echo "$head" | grep -qE "$pattern"; then
+          echo "Commit message doesn't match Conventional Commits:" >&2
+          echo "  $head" >&2
+          echo "Expected: type(scope)?: summary  — types: feat fix chore docs style refactor perf test build ci revert" >&2
+          exit 1
+        fi
+
+pre-push:
+  commands:
+    check:
+      run: bun run check

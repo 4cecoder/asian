@@ -1,0 +1,6 @@
+node_modules
+.next
+.turbo
+apps/android
+docs/source-specs/complete-spec-nextjs16.md
+bun.lock
