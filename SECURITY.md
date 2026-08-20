@@ -25,6 +25,33 @@ Never commit, and gitignored accordingly (see `.gitignore`):
 - Any exported user data, seed data with real user content, or database
   dumps. Synthetic/example seed data for tests is fine; anything that
   could be real user data is not.
+- **Auth and login data specifically** — user identities, sessions,
+  credentials, OAuth tokens. This is the highest-sensitivity category of
+  "Convex data" and gets the same treatment as any other Convex data:
+  never in the repo, never in a screenshot in an issue/PR, full stop.
+
+## Where secrets actually live
+
+Two places, chosen by which system needs them at runtime — never a third
+place (no `.env` files committed, no secrets pasted into issues/PRs/commit
+messages):
+
+- **Convex-side runtime secrets** (API keys Convex functions call out
+  with, auth provider secrets, anything the Convex deployment itself
+  needs to execute) — set via the Convex CLI, `bunx convex env set KEY
+value`, scoped per deployment (dev/preview/prod are separate Convex
+  deployments with separate env vars). `bunx convex env list` to audit
+  what's set; never `convex env get` a value into a place that gets
+  logged or committed.
+- **CI/CD and cross-service secrets** (`CONVEX_DEPLOY_KEY`,
+  `NETLIFY_AUTH_TOKEN`, anything GitHub Actions or Netlify's build needs)
+  — set via `gh secret set KEY --repo 4cecoder/asian`, consumed in
+  workflows as `${{ secrets.KEY }}`. `gh secret list` to audit.
+
+If a value is needed in both places, set it in both explicitly — don't
+try to make one system read the other's store implicitly; that's exactly
+the kind of "clever" indirection that makes an incident response take
+longer, not shorter.
 
 ## If a secret leaks anyway
 

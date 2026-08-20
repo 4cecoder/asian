@@ -16,18 +16,54 @@ All run from the repo root, via [Turborepo](https://turborepo.com) — it
 caches per-package, so re-running `lint`/`typecheck`/`build` after an
 unrelated change is near-instant.
 
-| Command                | What it does                                                      |
-| ---------------------- | ----------------------------------------------------------------- |
-| `bun run dev`          | Next.js dev server, `apps/web`                                    |
-| `bun run build`        | production build, all workspaces                                  |
-| `bun run lint`         | eslint, all workspaces                                            |
-| `bun run typecheck`    | `tsc --noEmit`, all workspaces                                    |
-| `bun run format`       | prettier, writes                                                  |
-| `bun run format:check` | prettier, check-only (what CI runs)                               |
-| `bun run check`        | lint + typecheck + build — what CI and the pre-push hook both run |
+| Command                | What it does                                                               |
+| ---------------------- | -------------------------------------------------------------------------- |
+| `bun run dev`          | Next.js dev server, `apps/web`                                             |
+| `bun run build`        | production build, all workspaces                                           |
+| `bun run lint`         | eslint, all workspaces                                                     |
+| `bun run typecheck`    | `tsc --noEmit`, all workspaces                                             |
+| `bun run format`       | prettier, writes                                                           |
+| `bun run format:check` | prettier, check-only (what CI runs)                                        |
+| `bun run check`        | lint + typecheck + build — what CI and the pre-push hook both run          |
+| `bun run test`         | Playwright E2E (`apps/web/e2e/`) — not part of `check`/pre-push, see below |
 
 Android lives in `apps/android` with its own Gradle toolchain — see
-`apps/android/README.md`.
+`apps/android/README.md`. iOS lives in `apps/ios` with Xcode/XcodeGen —
+see `apps/ios/README.md`.
+
+## Testing
+
+- **E2E**: Playwright, `apps/web/e2e/`. Deliberately **not** wired into
+  `bun run check` or the pre-push hook — it builds and boots a real
+  server plus a real browser, which is too slow for "every push" and
+  would train people to reach for `--no-verify`. It runs in CI
+  (`e2e (Playwright)` job) on every PR and **is** a required check before
+  merge — same rigor, different trigger point.
+- **Unit/regression**: as each workspace grows real logic, add
+  workspace-local unit tests next to the code they cover (`*.test.ts` for
+  `apps/web`, `XCTest`/Swift Testing for `apps/ios`, JUnit/Kotlin test for
+  `apps/android`) and wire a `test` script into that workspace's
+  `package.json` (or Gradle/Xcode scheme) — Turborepo's `test` task
+  already picks up any workspace that defines one.
+- **New feature, no tests → not done.** A PR adding behavior without a
+  test covering it doesn't meet this repo's bar, full stop.
+
+## Seed and fixture data
+
+Any feature that reads real data (a parser, an import pipeline, a UI
+that renders a list) needs synthetic seed/fixture data to test against —
+don't hand-wave "works on my machine with data I made up once and threw
+away." Convention:
+
+- Put it in a `seed/` or `fixtures/` directory next to the code that
+  consumes it (e.g. `apps/web/e2e/fixtures/`, or once Convex lands,
+  `convex/seed/`).
+- **Synthetic only.** No real user data, no scraped-and-kept third-party
+  content beyond what's needed as a small representative test sample —
+  see `SECURITY.md`.
+- Reference it from the feature's issue/PR acceptance criteria
+  explicitly — "seed data covering the empty/typical/malformed cases"
+  is a testable claim, "seed data" alone is not.
 
 ## Git hooks
 

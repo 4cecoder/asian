@@ -15,6 +15,20 @@ touching before writing code or docs:
   per-PR. Different toolchain than the rest of the repo (Gradle/JDK, not
   bun) — `bun run check` does not touch it; use `./gradlew` inside
   `apps/android/`.
+- **Working in `apps/ios`?** Read `apps/ios/README.md` and
+  `docs/knowledge/adr/0002-ios-swift.md` first. Swift 6.2+, strict
+  concurrency, SwiftUI only — settled, not open for reconsideration.
+  `project.yml` (XcodeGen) is the source of truth; `Asian.xcodeproj` is
+  generated and gitignored — never hand-edit it, never commit it. This
+  scaffold was built without full Xcode available — treat its "verified"
+  claims as weaker than Android's until CI (`ios-ci.yml`, `macos-14`
+  runner) has actually run green on it.
+- **Adding a new feature with real data flowing through it?** It needs:
+  a test (see `CONTRIBUTING.md`'s Testing section), synthetic seed/fixture
+  data (see that doc's Seed and fixture data section), and if it touches
+  Convex, secrets follow `SECURITY.md`'s "Where secrets actually live" —
+  `bunx convex env` for Convex-side runtime secrets, `gh secret set` for
+  CI/CD secrets, never a committed `.env`.
 - **Writing or editing anything under `docs/knowledge/`?** Follow
   `docs/knowledge/PACKAGE-FORMAT.md` for structure and
   `docs/knowledge/ai-agent-docs-guide.md` for how to write it —

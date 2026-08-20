@@ -132,6 +132,7 @@ table) and what's missing.
 ## Architecture decisions
 
 - [[adr-0001-android-kotlin]] — if a native Android app is built, it's Kotlin/Compose, not Java/Flutter/RN. Scaffold already exists at `apps/android/`.
+- [[adr-0002-ios-swift]] — if a native iOS app is built, it's Swift 6.2+/SwiftUI. Scaffold already exists at `apps/ios/` (XcodeGen, not a committed `.xcodeproj`).
 
 ## Meta
 

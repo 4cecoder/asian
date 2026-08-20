@@ -6,7 +6,8 @@ pronunciation scoring, spaced repetition, and an offline travel phrasebook,
 built from a 1,000-micro-task engineering specification (10 tracks × 100
 tasks) spanning Kubernetes, a Python/FastAPI backend, TTS/STT audio
 pipelines, an LLM roleplay engine, a Convex database, this Next.js
-frontend, and (if/when built — see ADR 0001) a native Kotlin Android app.
+frontend, and (if/when built — see ADR 0001/0002) native Kotlin Android
+and Swift iOS apps.
 
 Public repo, one exception: **Convex deployment data is not** — see
 `SECURITY.md`.
@@ -17,7 +18,9 @@ Public repo, one exception: **Convex deployment data is not** — see
 asian/
   apps/
     web/                  Next.js 16 app (App Router, Bun, Tailwind) — Track 9
+      e2e/                  Playwright E2E smoke tests, required CI check
     android/              Kotlin + Compose scaffold — see ADR 0001, apps/android/README.md
+    ios/                   Swift 6.2 + XcodeGen scaffold — see ADR 0002, apps/ios/README.md
   docs/
     knowledge/            Wikillm-style knowledge base — START HERE
       INDEX.md              map of content
@@ -30,7 +33,7 @@ asian/
       modules/                one page per module/domain within a track
     source-specs/          original spec doc + provenance/completeness notes
   .github/
-    workflows/             CI (web: lint/typecheck/build/format; android: ktlint/lint/assemble)
+    workflows/             CI (web: lint/typecheck/build/format/e2e; android: ktlint/lint/assemble; ios: build/test) + Dependabot auto-merge
     ISSUE_TEMPLATE/, PULL_REQUEST_TEMPLATE.md, CODEOWNERS, dependabot.yml
   netlify.toml             deploy config (base: apps/web)
   turbo.json               task orchestration + caching across workspaces
@@ -54,8 +57,9 @@ Read `apps/web/AGENTS.md` before writing frontend code — Next.js 16 ships
 its own agent-facing warning that its APIs differ from what's in most
 models' training data, and points at `node_modules/next/dist/docs/`
 (hoisted to the repo root — see `bunfig.toml`) as the authoritative
-reference. Read `apps/android/README.md` before touching the Android
-scaffold — different toolchain (Gradle/JDK), different constraints.
+reference. Read `apps/android/README.md` / `apps/ios/README.md` before
+touching either native scaffold — different toolchains (Gradle/JDK,
+Xcode/XcodeGen), different constraints.
 
 ## Docs and knowledge base
 
