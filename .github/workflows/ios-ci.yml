@@ -1,15 +1,15 @@
 name: iOS CI
 
+# No `paths:` filter on the trigger — same reasoning as android-ci.yml:
+# this is a required status check, and a path-filtered trigger means the
+# workflow never runs (not even "skipped") on PRs that don't touch
+# apps/ios, which blocks merging anything else forever. The workflow
+# always runs; the first step decides whether to do real work.
 on:
   pull_request:
     branches: [main]
-    paths:
-      - "apps/ios/**"
-      - ".github/workflows/ios-ci.yml"
   push:
     branches: [main]
-    paths:
-      - "apps/ios/**"
 
 concurrency:
   group: ios-ci-${{ github.ref }}
@@ -24,8 +24,29 @@ jobs:
         working-directory: apps/ios
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Check whether apps/ios changed
+        id: changed
+        working-directory: .
+        run: |
+          base="${{ github.event_name == 'pull_request' && github.event.pull_request.base.sha || github.event.before }}"
+          if [ -z "$base" ] || ! git cat-file -e "$base" 2>/dev/null; then
+            echo "No usable base SHA — assuming relevant." >&2
+            echo "relevant=true" >> "$GITHUB_OUTPUT"
+          elif git diff --name-only "$base" "${{ github.sha }}" -- apps/ios .github/workflows/ios-ci.yml | grep -q .; then
+            echo "relevant=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "relevant=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: No apps/ios changes — skipping
+        if: steps.changed.outputs.relevant != 'true'
+        run: echo "Nothing under apps/ios changed in this diff."
 
       - name: Select an Xcode 16.x (Swift 6.2+) install
+        if: steps.changed.outputs.relevant == 'true'
         run: |
           # Runner images ship several Xcode versions under exact, version-pinned
           # bundle names (Xcode_16.2.app, Xcode_16.3.app, ...) that drift over time
@@ -40,14 +61,18 @@ jobs:
           echo "Selecting $candidate"
           sudo xcode-select -s "$candidate/Contents/Developer"
 
-      - run: swift --version
+      - if: steps.changed.outputs.relevant == 'true'
+        run: swift --version
 
       - name: Install XcodeGen
+        if: steps.changed.outputs.relevant == 'true'
         run: brew install xcodegen
 
-      - run: xcodegen generate
+      - if: steps.changed.outputs.relevant == 'true'
+        run: xcodegen generate
 
       - name: Build (iOS Simulator)
+        if: steps.changed.outputs.relevant == 'true'
         run: |
           xcodebuild -scheme Asian -sdk iphonesimulator \
             -destination 'generic/platform=iOS Simulator' \
@@ -55,6 +80,7 @@ jobs:
 
       - name: Pick an available iOS Simulator device
         id: sim
+        if: steps.changed.outputs.relevant == 'true'
         run: |
           # Same drift problem as the Xcode version: hardcoding a device name
           # (e.g. "iPhone 16") assumes it's pre-provisioned on this runner image,
@@ -74,6 +100,7 @@ jobs:
           echo "device=$device" >> "$GITHUB_OUTPUT"
 
       - name: Test
+        if: steps.changed.outputs.relevant == 'true'
         run: |
           xcodebuild -scheme Asian \
             -destination "platform=iOS Simulator,name=${{ steps.sim.outputs.device }}" \

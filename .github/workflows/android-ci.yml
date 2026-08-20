@@ -1,15 +1,17 @@
 name: Android CI
 
+# No `paths:` filter on the trigger — this is a required status check
+# (branch protection), and a path-filtered *trigger* means the workflow
+# never runs at all on PRs that don't touch apps/android, which means the
+# required check never reports anything and GitHub blocks the merge
+# forever waiting on it. Instead the workflow always runs, and the first
+# step decides whether to actually do anything — a "skipped" conclusion
+# satisfies a required check; a check that never ran does not.
 on:
   pull_request:
     branches: [main]
-    paths:
-      - "apps/android/**"
-      - ".github/workflows/android-ci.yml"
   push:
     branches: [main]
-    paths:
-      - "apps/android/**"
 
 concurrency:
   group: android-ci-${{ github.ref }}
@@ -19,20 +21,53 @@ jobs:
   build:
     name: assemble + lint (Kotlin)
     runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: apps/android
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Check whether apps/android changed
+        id: changed
+        run: |
+          base="${{ github.event_name == 'pull_request' && github.event.pull_request.base.sha || github.event.before }}"
+          if [ -z "$base" ] || ! git cat-file -e "$base" 2>/dev/null; then
+            echo "No usable base SHA — assuming relevant." >&2
+            echo "relevant=true" >> "$GITHUB_OUTPUT"
+          elif git diff --name-only "$base" "${{ github.sha }}" -- apps/android .github/workflows/android-ci.yml | grep -q .; then
+            echo "relevant=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "relevant=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: No apps/android changes — skipping
+        if: steps.changed.outputs.relevant != 'true'
+        run: echo "Nothing under apps/android changed in this diff."
 
       - uses: actions/setup-java@v4
+        if: steps.changed.outputs.relevant == 'true'
         with:
           distribution: temurin
           java-version: "17"
 
       - uses: gradle/actions/setup-gradle@v4
+        if: steps.changed.outputs.relevant == 'true'
 
-      - run: chmod +x gradlew
-      - run: ./gradlew ktlintCheck
-      - run: ./gradlew lint
-      - run: ./gradlew assembleDebug
+      - name: chmod gradlew
+        if: steps.changed.outputs.relevant == 'true'
+        working-directory: apps/android
+        run: chmod +x gradlew
+
+      - name: ktlintCheck
+        if: steps.changed.outputs.relevant == 'true'
+        working-directory: apps/android
+        run: ./gradlew ktlintCheck
+
+      - name: lint
+        if: steps.changed.outputs.relevant == 'true'
+        working-directory: apps/android
+        run: ./gradlew lint
+
+      - name: assembleDebug
+        if: steps.changed.outputs.relevant == 'true'
+        working-directory: apps/android
+        run: ./gradlew assembleDebug
