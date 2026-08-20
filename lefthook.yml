@@ -2,7 +2,7 @@ pre-commit:
   parallel: true
   commands:
     format:
-      glob: "*.{js,jsx,ts,tsx,mjs,json,md,css}"
+      glob: "*.{js,jsx,ts,tsx,mjs,json,md,css,yml,yaml}"
       run: bunx prettier --write {staged_files} && git add {staged_files}
     lint-web:
       root: "apps/web/"

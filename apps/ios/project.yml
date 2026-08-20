@@ -1,0 +1,50 @@
+name: Asian
+options:
+  bundleIdPrefix: com.bytecats.asian
+  deploymentTarget:
+    iOS: "17.0"
+  createIntermediateGroups: true
+
+settings:
+  base:
+    SWIFT_VERSION: "6.2"
+    SWIFT_STRICT_CONCURRENCY: complete
+    SWIFT_APPROACHABLE_CONCURRENCY: YES
+
+targets:
+  Asian:
+    type: application
+    platform: iOS
+    sources:
+      - path: Sources/Asian
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.bytecats.asian
+        GENERATE_INFOPLIST_FILE: YES
+        INFOPLIST_KEY_CFBundleDisplayName: Asian
+        INFOPLIST_KEY_UILaunchScreen_Generation: YES
+        INFOPLIST_KEY_UIApplicationSceneManifest_Generation: YES
+        MARKETING_VERSION: "0.1.0"
+        CURRENT_PROJECT_VERSION: "1"
+
+  AsianTests:
+    type: bundle.unit-test
+    platform: iOS
+    sources:
+      - path: Tests/AsianTests
+    dependencies:
+      - target: Asian
+    settings:
+      base:
+        GENERATE_INFOPLIST_FILE: YES
+
+schemes:
+  Asian:
+    build:
+      targets:
+        Asian: all
+    test:
+      targets:
+        - AsianTests
+    run:
+      config: Debug
