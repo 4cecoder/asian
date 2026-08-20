@@ -25,6 +25,7 @@ asian/
       modules/                one page per module/domain within a track
     source-specs/          original spec doc + provenance/completeness notes
   netlify.toml            deploy config (base: apps/web)
+  bunfig.toml             hoisted linker — single node_modules at root
   package.json            bun workspace root
 ```
 
@@ -38,8 +39,9 @@ bun run build                # production build of apps/web
 
 Read `apps/web/AGENTS.md` before writing frontend code — Next.js 16 ships
 its own agent-facing warning that its APIs differ from what's in most
-models' training data, and points at `node_modules/next/dist/docs/` as the
-authoritative reference.
+models' training data, and points at `node_modules/next/dist/docs/`
+(hoisted to the repo root — see `bunfig.toml`) as the authoritative
+reference.
 
 ## Docs and knowledge base
 
@@ -54,10 +56,12 @@ detail (1–5), which are partial (6), and which are scope-only stubs (7–10).
 
 ## Deploy
 
-Netlify project `asian-language-platform` is linked
-(`netlify.toml` + `.netlify/state.json`, base `apps/web`).
+Netlify project `asian-language-platform` is linked from `apps/web`
+(`apps/web/.netlify/state.json`) — the repo-root `netlify.toml` points its
+`base` there, so run deploys from inside that directory:
 
 ```bash
+cd apps/web
 bunx netlify-cli deploy --build          # preview deploy
 bunx netlify-cli deploy --build --prod   # production deploy
 ```
