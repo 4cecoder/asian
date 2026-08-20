@@ -44,12 +44,27 @@ apps/android/*.iml
 apps/android/captures/
 apps/android/.cxx/
 
+# ios / xcode — Asian.xcodeproj is generated from project.yml by xcodegen,
+# not committed (avoids pbxproj merge conflicts, same idea as apps/android/build/)
+apps/ios/*.xcodeproj/
+apps/ios/*.xcworkspace/
+apps/ios/DerivedData/
+apps/ios/.build/
+apps/ios/.swiftpm/
+apps/ios/xcuserdata/
+apps/ios/*.xcuserstate
+
 # typescript
 *.tsbuildinfo
 next-env.d.ts
 
 # turborepo
 .turbo/
+
+# playwright
+apps/web/playwright-report/
+apps/web/test-results/
+apps/web/blob-report/
 
 # editors
 .vscode/*

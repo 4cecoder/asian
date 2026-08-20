@@ -1,0 +1,48 @@
+name: iOS CI
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - "apps/ios/**"
+      - ".github/workflows/ios-ci.yml"
+  push:
+    branches: [main]
+    paths:
+      - "apps/ios/**"
+
+concurrency:
+  group: ios-ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build-and-test:
+    name: build + test (Swift 6.2, iOS Simulator)
+    runs-on: macos-14
+    defaults:
+      run:
+        working-directory: apps/ios
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Select Xcode 16
+        run: sudo xcode-select -s /Applications/Xcode_16.app/Contents/Developer
+
+      - run: swift --version
+
+      - name: Install XcodeGen
+        run: brew install xcodegen
+
+      - run: xcodegen generate
+
+      - name: Build (iOS Simulator)
+        run: |
+          xcodebuild -scheme Asian -sdk iphonesimulator \
+            -destination 'generic/platform=iOS Simulator' \
+            build
+
+      - name: Test
+        run: |
+          xcodebuild -scheme Asian \
+            -destination 'platform=iOS Simulator,name=iPhone 16' \
+            test
