@@ -18,15 +18,27 @@ concurrency:
 jobs:
   build-and-test:
     name: build + test (Swift 6.2, iOS Simulator)
-    runs-on: macos-14
+    runs-on: macos-15
     defaults:
       run:
         working-directory: apps/ios
     steps:
       - uses: actions/checkout@v4
 
-      - name: Select Xcode 16
-        run: sudo xcode-select -s /Applications/Xcode_16.app/Contents/Developer
+      - name: Select an Xcode 16.x (Swift 6.2+) install
+        run: |
+          # Runner images ship several Xcode versions under exact, version-pinned
+          # bundle names (Xcode_16.2.app, Xcode_16.3.app, ...) that drift over time
+          # and differ per image — hardcoding one exact name breaks the moment the
+          # image updates. Pick the newest 16.x actually present instead.
+          candidate=$(ls -d /Applications/Xcode_16*.app 2>/dev/null | sort -V | tail -1)
+          if [ -z "$candidate" ]; then
+            echo "No Xcode 16.x found on this runner. Available:" >&2
+            ls /Applications | grep -i xcode >&2
+            exit 1
+          fi
+          echo "Selecting $candidate"
+          sudo xcode-select -s "$candidate/Contents/Developer"
 
       - run: swift --version
 
