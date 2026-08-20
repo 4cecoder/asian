@@ -1,5 +1,7 @@
+import { ConvexAuthNextjsServerProvider } from "@convex-dev/auth/nextjs/server";
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
+import ConvexClientProvider from "@/components/ConvexClientProvider";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -17,10 +19,14 @@ export const metadata: Metadata = {
   description: "Situational-fluency travel-language platform for JA, TH, VI, ZH, and KO.",
 };
 
-export default function RootLayout({ children }: LayoutProps<"/">) {
+export default async function RootLayout({ children }: LayoutProps<"/">) {
   return (
-    <html lang="en" className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}>
-      <body className="flex min-h-full flex-col">{children}</body>
-    </html>
+    <ConvexAuthNextjsServerProvider>
+      <html lang="en" className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}>
+        <body className="flex min-h-full flex-col">
+          <ConvexClientProvider>{children}</ConvexClientProvider>
+        </body>
+      </html>
+    </ConvexAuthNextjsServerProvider>
   );
 }
