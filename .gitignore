@@ -28,13 +28,19 @@ bun-debug.log*
 .vercel
 .netlify
 
-# convex — schema/functions code is fine to publish; deployment data,
-# generated bindings, and local dev state are not. See SECURITY.md.
-# (Must be **/-prefixed: a mid-string "/" anchors a gitignore pattern to
-# the repo root, so a bare "convex/_generated/" silently only matched a
-# root-level convex/ and never apps/web/convex/ — caught by inspecting
-# git status right after the real deployment created the directory.)
-**/convex/_generated/
+# convex — schema/functions code is fine to publish; deployment data and
+# local dev state are not. See SECURITY.md.
+#
+# convex/_generated/ is DELIBERATELY NOT ignored, despite looking like a
+# build artifact — this was gitignored initially (wrong: assumed it was
+# like .next/ or a generated Xcode project) until CI failed with "Cannot
+# find module './_generated/api'". Convex's own `codegen --help` says
+# outright: "should be committed to the repo (your code won't typecheck
+# without it!)" — and unlike a truly regenerate-anywhere artifact,
+# regenerating it requires a live, authenticated Convex connection
+# (`bunx convex codegen` fails outright with no CONVEX_DEPLOYMENT set),
+# so CI can't cheaply regenerate it on every run the way it can rerun
+# `xcodegen generate`. Commit it.
 .convex/
 *.convex.local
 .auth-keys.json
