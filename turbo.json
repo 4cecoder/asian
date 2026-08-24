@@ -14,6 +14,10 @@
       "dependsOn": ["^lint"],
       "outputs": []
     },
+    "test:unit": {
+      "dependsOn": ["^test:unit"],
+      "outputs": []
+    },
     "typecheck": {
       "dependsOn": ["^typecheck", "build"],
       "outputs": []
