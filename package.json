@@ -12,9 +12,10 @@
     "lint": "turbo run lint",
     "typecheck": "turbo run typecheck",
     "test": "turbo run test",
+    "test:unit": "turbo run test:unit",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
-    "check": "turbo run lint typecheck build",
+    "check": "turbo run lint typecheck test:unit build",
     "postinstall": "lefthook install"
   },
   "packageManager": "bun@1.4.0",

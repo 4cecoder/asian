@@ -24,7 +24,8 @@ unrelated change is near-instant.
 | `bun run typecheck`    | `tsc --noEmit`, all workspaces                                             |
 | `bun run format`       | prettier, writes                                                           |
 | `bun run format:check` | prettier, check-only (what CI runs)                                        |
-| `bun run check`        | lint + typecheck + build — what CI and the pre-push hook both run          |
+| `bun run test:unit`    | Convex function tests (`convex-test` + vitest, in-memory backend)          |
+| `bun run check`        | lint + typecheck + test:unit + build — what CI and the pre-push hook run   |
 | `bun run test`         | Playwright E2E (`apps/web/e2e/`) — not part of `check`/pre-push, see below |
 
 Android lives in `apps/android` with its own Gradle toolchain — see
