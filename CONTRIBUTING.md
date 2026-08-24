@@ -85,8 +85,18 @@ the hook, file an issue," not a routine escape hatch.
 
 - Branch off `main`: `type/short-description` (matches commit prefixes —
   `feat/`, `fix/`, `chore/`, `docs/`...).
-- `main` is protected — no direct pushes, PRs required. See
-  `.github/PULL_REQUEST_TEMPLATE.md` for what a PR description should cover.
+- `main` is protected — no direct pushes, PRs required, 5 required
+  status checks (web, format, e2e, Android, iOS — the last two skip
+  cleanly on PRs that don't touch those directories, see
+  `.github/workflows/android-ci.yml`/`ios-ci.yml`'s own comments for why
+  they can't just be path-filtered at the trigger level).
+- **Required checks are not `strict`** — a PR doesn't have to be rebased
+  onto the latest `main` to merge, only pass its own checks. Turned off
+  deliberately: Dependabot auto-merges frequently (small version bumps,
+  several times a week), and `strict` mode was forcing an unrelated
+  rebase on every longer-lived branch just to catch up to those bumps.
+  If this ever causes a real conflict, that surfaces as a normal merge
+  conflict on the PR — `strict` isn't what prevents that.
 - Open an issue first for anything non-trivial (see the issue templates)
   so there's a record of _why_, not just _what_, before code exists.
 
