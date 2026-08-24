@@ -90,6 +90,32 @@ the hook, file an issue," not a routine escape hatch.
 - Open an issue first for anything non-trivial (see the issue templates)
   so there's a record of _why_, not just _what_, before code exists.
 
+## Maintainability bar
+
+Same spirit as "no tests, not done" — these are checkable, not aspirational:
+
+- **A file over ~150–200 lines is a signal, not a limit.** Look for the
+  natural split (a sub-component, a hook, a module) before adding more to
+  one file. See ADR 0004's component rules for the frontend-specific
+  version of this.
+- **One responsibility per file.** A component file exports one
+  component; a Convex function file groups genuinely related
+  queries/mutations, not "everything about the app."
+- **No dead code, no commented-out blocks, no `TODO` without an issue
+  number.** A `TODO` that isn't linked to something trackable rots
+  silently — either it's worth an issue or it isn't worth the comment.
+- **A PR that adds a workaround explains why in the commit message**,
+  not just what — see this repo's own commit history for the standard
+  (e.g. the CI fixes under `.github/workflows/`, which each explain the
+  actual failure they were responding to, not just "fix CI").
+- **If you had to figure something out the hard way** (a footgun, a
+  non-obvious API behavior, a tool that hangs in some mode), write it
+  down — in a code comment if it's file-local, in `SECURITY.md`/
+  `CONTRIBUTING.md`/an ADR if it's project-wide, or as a skill/knowledge
+  package if it's the kind of thing an agent should know before
+  attempting the same task. The alternative is someone (human or agent)
+  re-discovering it the same slow way.
+
 ## Where things live
 
 - **Building a spec'd task?** Find it in `docs/knowledge/modules/track-NN/`

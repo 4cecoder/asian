@@ -40,9 +40,13 @@ messages):
   with, auth provider secrets, anything the Convex deployment itself
   needs to execute) — set via the Convex CLI, `bunx convex env set KEY
 value`, scoped per deployment (dev/preview/prod are separate Convex
-  deployments with separate env vars). `bunx convex env list` to audit
-  what's set; never `convex env get` a value into a place that gets
-  logged or committed.
+  deployments with separate env vars).
+  **`bunx convex env list` prints full values, not just key names** —
+  learned the hard way setting up auth (a freshly-generated dev signing
+  key ended up in a session transcript and had to be rotated
+  immediately). Never run it where the output gets logged, screen-shared,
+  or pasted anywhere. To check _which_ keys are set without their
+  values: `bunx convex env list | cut -d= -f1`.
 - **CI/CD and cross-service secrets** (`CONVEX_DEPLOY_KEY`,
   `NETLIFY_AUTH_TOKEN`, anything GitHub Actions or Netlify's build needs)
   — set via `gh secret set KEY --repo 4cecoder/asian`, consumed in
