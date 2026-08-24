@@ -45,6 +45,17 @@ jobs:
   e2e:
     name: e2e (Playwright)
     runs-on: ubuntu-latest
+    env:
+      # Public client URLs (exposed in every page's JS bundle regardless —
+      # not secret), needed because `next start` actually renders the
+      # Convex-wrapped app for real requests. `next build` alone doesn't
+      # need these (routes are dynamic, not statically prerendered), which
+      # is why this was missed until e2e's `next start` step hit it first.
+      # Points at the shared dev deployment for now — a real per-PR preview
+      # deployment (`convex deploy --preview-create`) is the correct
+      # longer-term fix, not done here.
+      NEXT_PUBLIC_CONVEX_URL: ${{ vars.NEXT_PUBLIC_CONVEX_URL }}
+      NEXT_PUBLIC_CONVEX_SITE_URL: ${{ vars.NEXT_PUBLIC_CONVEX_SITE_URL }}
     steps:
       - uses: actions/checkout@v7
 
