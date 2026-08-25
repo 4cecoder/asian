@@ -1,6 +1,7 @@
 import { v } from "convex/values";
 import { mutation, query } from "./_generated/server";
 import type { Id } from "./_generated/dataModel";
+import { userIdFromSubject } from "./authz";
 
 export const list = query({
   args: {
@@ -28,7 +29,7 @@ export const list = query({
 
     if (!identity) return publicDecks;
 
-    const userId = ctx.db.normalizeId("users", identity.subject);
+    const userId = ctx.db.normalizeId("users", userIdFromSubject(identity.subject));
     if (!userId) return publicDecks;
 
     const ownDecks = await ctx.db
@@ -50,7 +51,8 @@ export const get = query({
     if (deck.visibility === "public") return deck;
 
     const identity = await ctx.auth.getUserIdentity();
-    if (!identity || identity.subject !== deck.ownerId) return null; // don't leak private-deck existence
+    // Don't leak private-deck existence to non-owners (or anonymous users).
+    if (!identity || userIdFromSubject(identity.subject) !== deck.ownerId) return null;
     return deck;
   },
 });
@@ -71,7 +73,10 @@ export const create = mutation({
     const identity = await ctx.auth.getUserIdentity();
     if (!identity) throw new Error("Must be signed in to create a deck.");
 
-    const ownerId = ctx.db.normalizeId("users", identity.subject) as Id<"users"> | null;
+    const ownerId = ctx.db.normalizeId(
+      "users",
+      userIdFromSubject(identity.subject),
+    ) as Id<"users"> | null;
     if (!ownerId) throw new Error("Signed-in identity is not a valid user.");
 
     return await ctx.db.insert("decks", {

@@ -9,21 +9,31 @@
  */
 
 import type * as auth from "../auth.js";
+import type * as authz from "../authz.js";
 import type * as cards from "../cards.js";
+import type * as crons from "../crons.js";
 import type * as decks from "../decks.js";
 import type * as dictionary from "../dictionary.js";
 import type * as http from "../http.js";
+import type * as seed_sampleSubmissions from "../seed/sampleSubmissions.js";
 import type * as srs from "../srs.js";
+import type * as submissionTypes from "../submissionTypes.js";
+import type * as submissions from "../submissions.js";
 
 import type { ApiFromModules, FilterApi, FunctionReference } from "convex/server";
 
 declare const fullApi: ApiFromModules<{
   auth: typeof auth;
+  authz: typeof authz;
   cards: typeof cards;
+  crons: typeof crons;
   decks: typeof decks;
   dictionary: typeof dictionary;
   http: typeof http;
+  "seed/sampleSubmissions": typeof seed_sampleSubmissions;
   srs: typeof srs;
+  submissionTypes: typeof submissionTypes;
+  submissions: typeof submissions;
 }>;
 
 /**

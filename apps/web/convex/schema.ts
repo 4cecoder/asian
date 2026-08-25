@@ -1,6 +1,12 @@
 import { defineSchema, defineTable } from "convex/server";
 import { authTables } from "@convex-dev/auth/server";
 import { v } from "convex/values";
+import {
+  packetEntry,
+  submissionKind,
+  submissionLanguage,
+  submissionPayload,
+} from "./submissionTypes";
 
 /**
  * First real cut of Track 8 (docs/knowledge/tracks/track-08-convex-db.md
@@ -74,30 +80,70 @@ export default defineSchema({
     .index("by_user_card", ["userId", "cardId"])
     .index("by_user_due", ["userId", "dueAt"]),
 
-  // Queue for community-submitted content (Anki file upload, a Quizlet-set
-  // link to reimport, a manually authored deck) awaiting processing/review
-  // before it becomes a public deck. See the "community content ingestion"
-  // feature issues for the actual processing pipeline design.
+  // Queue for community-submitted content awaiting AI refinement and/or
+  // human review before it becomes public. Two producer paths share this
+  // table: file-import flows (anki_import / quizlet_reimport / manual_deck,
+  // the original deck-ingestion queue) and the newer granular community
+  // contributions (phrase / card / correction / exampleSentence /
+  // situationPack) that feed the AI-refinement pipeline and get published
+  // as contentPackets. See convex/submissionTypes.ts for the per-kind
+  // payload shapes — they are validated at the mutation boundary.
   submissions: defineTable({
     submitterId: v.id("users"),
     kind: v.union(
       v.literal("anki_import"),
       v.literal("quizlet_reimport"),
       v.literal("manual_deck"),
+      submissionKind,
     ),
     status: v.union(
       v.literal("pending"),
       v.literal("processing"),
       v.literal("approved"),
       v.literal("rejected"),
+      v.literal("needsReview"),
     ),
+    language: v.optional(submissionLanguage),
+    payload: v.optional(v.any()), // validated by submissionPayload at submit time; refinement may reshape it
     sourceFileStorageId: v.optional(v.id("_storage")),
     sourceUrl: v.optional(v.string()),
     resultDeckId: v.optional(v.id("decks")),
     errorMessage: v.optional(v.string()),
+    reviewerNotes: v.optional(v.string()),
+    aiNotes: v.optional(v.string()),
+    publishedPacketId: v.optional(v.id("contentPackets")), // set when the approved submission ships in a packet
+    createdAt: v.optional(v.number()),
+    updatedAt: v.optional(v.number()),
   })
     .index("by_submitter", ["submitterId"])
-    .index("by_status", ["status"]),
+    .index("by_status", ["status"])
+    .index("by_status_createdAt", ["status", "createdAt"]) // FIFO scan of the pending/refinement queues
+    .index("by_submitter_createdAt", ["submitterId", "createdAt"]), // rate limiting + my-submissions, newest first
+
+  // Moderation roles. The users table comes from @convex-dev/auth's
+  // authTables (all-optional fields, library-managed indexes), so roles
+  // live in a side table keyed by user instead of overriding the
+  // library's users definition — see convex/authz.ts for the checks.
+  userRoles: defineTable({
+    userId: v.id("users"),
+    role: v.union(v.literal("moderator"), v.literal("admin")),
+  }).index("by_user", ["userId"]),
+
+  // Published OKF-style knowledge packets: refined community content,
+  // versioned per language. draft = assembled but not live; published =
+  // shipped to all clients. Entries carry their source submission id so
+  // contributor provenance survives into the artifact.
+  contentPackets: defineTable({
+    packetId: v.string(),
+    language: submissionLanguage,
+    version: v.number(),
+    entries: v.array(packetEntry),
+    status: v.union(v.literal("draft"), v.literal("published")),
+    createdAt: v.number(),
+    publishedAt: v.optional(v.number()),
+  })
+    .index("by_packet", ["packetId"])
+    .index("by_language_status", ["language", "status"]),
 
   // Track 10 (phrasebook) scope — situational travel phrases.
   phrases: defineTable({

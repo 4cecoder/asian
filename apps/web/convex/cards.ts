@@ -1,6 +1,8 @@
 import { v } from "convex/values";
 import { mutation, query } from "./_generated/server";
 
+import { userIdFromSubject } from "./authz";
+
 export const listByDeck = query({
   args: { deckId: v.id("decks") },
   handler: async (ctx, args) => {
@@ -10,7 +12,7 @@ export const listByDeck = query({
     if (!deck) return [];
     if (deck.visibility !== "public") {
       const identity = await ctx.auth.getUserIdentity();
-      if (!identity || identity.subject !== deck.ownerId) return [];
+      if (!identity || userIdFromSubject(identity.subject) !== deck.ownerId) return [];
     }
 
     return await ctx.db
@@ -33,7 +35,9 @@ export const create = mutation({
 
     const deck = await ctx.db.get(args.deckId);
     if (!deck) throw new Error("Deck not found.");
-    if (identity.subject !== deck.ownerId) throw new Error("Only the deck owner can add cards.");
+    if (userIdFromSubject(identity.subject) !== deck.ownerId) {
+      throw new Error("Only the deck owner can add cards.");
+    }
 
     const cardId = await ctx.db.insert("cards", {
       deckId: args.deckId,

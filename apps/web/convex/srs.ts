@@ -2,6 +2,8 @@ import { v } from "convex/values";
 import { mutation, query } from "./_generated/server";
 import type { Id } from "./_generated/dataModel";
 
+import { userIdFromSubject } from "./authz";
+
 function requireUserId(
   subject: string,
   normalize: (id: string) => Id<"users"> | null,
@@ -17,7 +19,7 @@ export const dueToday = query({
     const identity = await ctx.auth.getUserIdentity();
     if (!identity) return [];
 
-    const userId = ctx.db.normalizeId("users", identity.subject);
+    const userId = ctx.db.normalizeId("users", userIdFromSubject(identity.subject));
     if (!userId) return [];
 
     return await ctx.db
@@ -42,7 +44,9 @@ export const recordReview = mutation({
   handler: async (ctx, args) => {
     const identity = await ctx.auth.getUserIdentity();
     if (!identity) throw new Error("Must be signed in to record a review.");
-    const userId = requireUserId(identity.subject, (id) => ctx.db.normalizeId("users", id));
+    const userId = requireUserId(userIdFromSubject(identity.subject), (id) =>
+      ctx.db.normalizeId("users", id),
+    );
 
     const existing = await ctx.db
       .query("srsCardState")
