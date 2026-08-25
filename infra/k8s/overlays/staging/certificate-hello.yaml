@@ -1,0 +1,17 @@
+# TASK-046 pattern: explicit Certificate resource targeting the staging
+# issuer, so validation never touches Let's Encrypt production rate limits.
+# Issues the same secret the real worker's Ingress will consume.
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: lingo-tls-cert
+  labels:
+    app.kubernetes.io/name: hello-world
+    app.kubernetes.io/environment: staging
+spec:
+  secretName: lingo-tls-cert
+  dnsNames:
+    - staging.lingo.yourdomain.com
+  issuerRef:
+    name: letsencrypt-staging
+    kind: ClusterIssuer

@@ -1,0 +1,32 @@
+# Staging hello-world Ingress. Proves: DNS -> ingress-nginx -> service,
+# with a cert-manager-issued Let's Encrypt staging cert.
+# The proxy-body-size annotation mirrors the controller-wide 25m audio
+# sizing from TASK-032 so per-route behavior matches the future worker.
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: hello-ingress
+  labels:
+    app.kubernetes.io/name: hello-world
+    app.kubernetes.io/environment: staging
+  annotations:
+    nginx.ingress.kubernetes.io/proxy-body-size: "25m"
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "3600"
+    nginx.ingress.kubernetes.io/proxy-send-timeout: "3600"
+spec:
+  ingressClassName: nginx
+  tls:
+    - hosts:
+        - staging.lingo.yourdomain.com
+      secretName: lingo-tls-cert
+  rules:
+    - host: staging.lingo.yourdomain.com
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: hello-service
+                port:
+                  number: 80

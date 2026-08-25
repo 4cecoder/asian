@@ -1,0 +1,14 @@
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: lingo-config-reader-binding
+  labels:
+    app.kubernetes.io/part-of: lingo
+    app.kubernetes.io/component: worker
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: lingo-config-reader
+subjects:
+  - kind: ServiceAccount
+    name: lingo-worker-sa

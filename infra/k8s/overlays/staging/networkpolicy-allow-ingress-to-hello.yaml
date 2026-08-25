@@ -1,0 +1,28 @@
+# Allows ingress-nginx -> hello-world pods inside lingo-staging.
+# Required because the base networkpolicies module applies default-deny-all
+# to every pod in the namespace, and its only ingress allow rule targets
+# app: lingo-worker pods. Mirrors the allow-ingress-to-worker pattern.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-ingress-to-hello
+  labels:
+    app.kubernetes.io/part-of: lingo
+    app.kubernetes.io/component: smoke-test
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: hello-world
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: ingress-nginx
+          podSelector:
+            matchLabels:
+              app.kubernetes.io/name: ingress-nginx
+      ports:
+        - protocol: TCP
+          port: 80

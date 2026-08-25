@@ -1,0 +1,11 @@
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: lingo-config-reader
+  labels:
+    app.kubernetes.io/part-of: lingo
+    app.kubernetes.io/component: worker
+rules:
+  - apiGroups: [""]
+    resources: ["configmaps"]
+    verbs: ["get", "list", "watch"]

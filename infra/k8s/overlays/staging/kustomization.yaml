@@ -1,0 +1,24 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+# All namespaced resources land in lingo-staging (created by the sibling
+# namespaces module). ClusterIssuers are cluster-scoped and unaffected.
+namespace: lingo-staging
+
+resources:
+  # ClusterIssuers (cluster-scoped, applied once per cluster).
+  - ../../base/cert-manager
+  # Hello-world smoke-test app.
+  - ../../base/hello-world
+  # Staging-specific routing + TLS.
+  - ingress-hello.yaml
+  - certificate-hello.yaml
+  # Opens ingress-nginx -> hello-world through the base default-deny-all.
+  - networkpolicy-allow-ingress-to-hello.yaml
+
+labels:
+  - pairs:
+      app.kubernetes.io/part-of: lingo
+      app.kubernetes.io/environment: staging
+    includeSelectors: false
+    includeTemplates: true

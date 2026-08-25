@@ -1,0 +1,24 @@
+# Helm values for cert-manager.
+# Source of truth: docs/knowledge/modules/track-01/05-cert-manager.md
+# Apply with:
+#   helm repo add jetstack https://charts.jetstack.io
+#   helm upgrade --install cert-manager jetstack/cert-manager \
+#     --namespace cert-manager --create-namespace \
+#     -f infra/k8s/base/cert-manager/values.yaml
+
+controller:
+  replicaCount: 2
+
+prometheus:
+  enabled: true
+  servicemonitor:
+    enabled: true
+
+crds:
+  # Current chart flag (chart >= v1.15): keeps CRDs upgraded by Helm.
+  enabled: true
+  keep: true
+
+# Legacy flag kept for spec traceability (TASK-041). Charts older than v1.15
+# read installCRDs; current charts ignore it with a warning.
+installCRDs: true

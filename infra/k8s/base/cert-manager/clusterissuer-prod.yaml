@@ -1,0 +1,17 @@
+# TASK-043: Let's Encrypt production ACME ClusterIssuer (HTTP-01).
+# Production issuer has strict rate limits (5 duplicate certs/week).
+# Do not point staging workloads at this issuer.
+apiVersion: cert-manager.io/v1
+kind: ClusterIssuer
+metadata:
+  name: letsencrypt-prod
+spec:
+  acme:
+    server: https://acme-v02.api.letsencrypt.org/directory
+    email: ops@lingo.yourdomain.com
+    privateKeySecretRef:
+      name: letsencrypt-prod-account-key
+    solvers:
+      - http01:
+          ingress:
+            ingressClassName: nginx

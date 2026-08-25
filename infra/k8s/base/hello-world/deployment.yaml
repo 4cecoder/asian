@@ -1,0 +1,41 @@
+# Trivial hello-world Deployment used to prove the ingress + TLS chain
+# end to end before the Phase 3 worker deploys (issue #20 acceptance).
+# traefik/whoami echoes request headers, which makes X-Forwarded-For
+# preservation visible in the response body.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: hello-world
+  labels:
+    app.kubernetes.io/name: hello-world
+    app.kubernetes.io/component: smoke-test
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: hello-world
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: hello-world
+        app.kubernetes.io/component: smoke-test
+    spec:
+      containers:
+        - name: whoami
+          image: traefik/whoami:v1.10.4
+          ports:
+            - containerPort: 80
+              name: http
+          resources:
+            requests:
+              cpu: 10m
+              memory: 16Mi
+            limits:
+              cpu: 100m
+              memory: 32Mi
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: http
+            initialDelaySeconds: 2
+            periodSeconds: 5

@@ -1,0 +1,48 @@
+# Helm values for ingress-nginx.
+# Source of truth: docs/knowledge/modules/track-01/04-ingress-gateway.md
+# Apply with:
+#   helm repo add ingress-nginx https://kubernetes.github.io/ingress-nginx
+#   helm upgrade --install ingress-nginx ingress-nginx/ingress-nginx \
+#     --namespace ingress-nginx --create-namespace \
+#     -f infra/k8s/base/ingress/values.yaml
+#
+# Audio payload sizing (TASK-032): the Python worker accepts voice uploads up
+# to ~20MB WAV. proxy-body-size is 25m so uploads never hit HTTP 413.
+# proxy-buffer-size/client-header-buffer-size are raised because large request
+# headers and upstream response headers otherwise truncate (400/502 errors).
+
+controller:
+  # TASK-031: two replicas across nodes, one may be down during rollout.
+  replicaCount: 2
+  minAvailable: 1
+  # TASK-031: snippet annotations enable remote code execution CVEs. Keep off.
+  allowSnippetAnnotations: false
+
+  metrics:
+    enabled: true
+
+  service:
+    # TASK-031/034: Local preserves real client source IPs behind the edge.
+    externalTrafficPolicy: Local
+
+  config:
+    # --- TASK-032: audio payload body & buffer sizes ---
+    proxy-body-size: "25m"
+    proxy-buffer-size: "128k"
+    proxy-buffers-number: "4"
+    client-header-buffer-size: "64k"
+
+    # --- TASK-034: real client IP preservation ---
+    use-forwarded-headers: "true"
+    compute-full-forwarded-for: "true"
+
+    # --- TASK-039: compression for JSON/API payloads ---
+    enable-gzip: "true"
+    enable-brotli: "true"
+    # gzip-types defaults already cover application/json, text/html,
+    # application/javascript, text/css.
+
+    # --- TASK-048: modern TLS only ---
+    ssl-protocols: "TLSv1.2 TLSv1.3"
+    ssl-ciphers: >-
+      ECDHE-ECDSA-AES128-GCM-SHA256:ECDHE-RSA-AES128-GCM-SHA256:ECDHE-ECDSA-AES256-GCM-SHA384:ECDHE-RSA-AES256-GCM-SHA384

@@ -1,0 +1,21 @@
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-frontend-to-worker
+  labels:
+    app.kubernetes.io/part-of: lingo
+    app.kubernetes.io/component: worker
+spec:
+  podSelector:
+    matchLabels:
+      app: lingo-worker
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              app: lingo-frontend
+      ports:
+        - protocol: TCP
+          port: 8000

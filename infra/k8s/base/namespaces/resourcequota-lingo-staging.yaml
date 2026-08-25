@@ -1,0 +1,21 @@
+apiVersion: v1
+kind: ResourceQuota
+metadata:
+  name: lingo-staging-quota
+  namespace: lingo-staging
+  labels:
+    app.kubernetes.io/part-of: lingo-platform
+spec:
+  hard:
+    requests.cpu: "2"
+    requests.memory: 4Gi
+    limits.cpu: "6"
+    limits.memory: 8Gi
+    requests.ephemeral-storage: 2Gi
+    limits.ephemeral-storage: 5Gi
+    count/pods: "15"
+    count/services: "5"
+    count/secrets: "15"
+    count/configmaps: "15"
+    persistentvolumeclaims: "2"
+    services.loadbalancers: "0"
