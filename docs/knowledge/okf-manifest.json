@@ -1,0 +1,43 @@
+{
+  "okf_version": "0.2",
+  "package_id": "asian-knowledge-base",
+  "name": "Asian Language Learning Platform — Knowledge Base",
+  "version": "1.0.0",
+  "description": "WikiLLM-style knowledge base for the asian platform: the 1,000-micro-task specification condensed into cross-linked OKF v0.2 packages (10 tracks, module-level task tables, ADRs, writing conventions), plus the runtime packet contract for community-refined learning content.",
+  "author": "fource",
+  "created": "2026-08-25T00:00:00Z",
+  "last_updated": "2026-08-25T00:00:00Z",
+  "language": "en",
+  "license": "UNLICENSED",
+  "standard": "ASD-STE100-derived house style",
+  "categories": ["specification", "architecture", "conventions", "learning-content"],
+  "tags": ["k8s", "cicd", "fastapi", "tts", "stt", "llm", "srs", "convex", "nextjs", "pwa"],
+  "format": "okf-v0.2",
+  "structure": {
+    "type": "distribution",
+    "main_content": "INDEX.md",
+    "reference": [
+      "tracks/track-01-k8s-infra.md",
+      "tracks/track-02-docker-cicd.md",
+      "tracks/track-03-python-backend.md",
+      "tracks/track-04-tts-audio.md",
+      "tracks/track-05-stt-pronunciation.md",
+      "tracks/track-06-llm-roleplay.md",
+      "tracks/track-07-srs-engine.md",
+      "tracks/track-08-convex-db.md",
+      "tracks/track-09-nextjs-frontend.md",
+      "tracks/track-10-phrasebook-pwa.md"
+    ]
+  },
+  "metadata": {
+    "project": "asian",
+    "location": "bytecats/asian/docs/knowledge/",
+    "coverage": {
+      "tasks_total": 1000,
+      "tasks_detailed": 577,
+      "note": "Source specification is truncated; stub tracks are scope-only by design, not omission."
+    },
+    "requires": []
+  },
+  "commands": {}
+}

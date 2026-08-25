@@ -1,9 +1,13 @@
 ---
+okf_version: "0.2"
+package_id: index
 id: index
 title: Knowledge Base Index
 track: meta
-status: partial
-tags: [meta, index, moc]
+status: draft
+stale_after: 2027-08-25
+tags: [meta, index, moc, okf]
+related: [package-format, okf-adoption, content-packet-format]
 ---
 
 # Asian Language Learning Platform — Knowledge Base
@@ -129,16 +133,36 @@ table) and what's missing.
 - [[track-09-nextjs-frontend]] — the app scaffolded at `apps/web` in this repo
 - [[track-10-phrasebook-pwa]] — offline PWA, 500+ situational phrases
 
+### Build progress vs. the stubs (as of 2026-08-25)
+
+The stub status describes the _source spec_ coverage, not the code. The
+code has moved ahead of its stub pages; this is the honest state of
+`apps/web` (Track 9):
+
+- Real route groups and real pages exist for: auth + onboarding,
+  decks (list/detail/new), review, dictionary, phrasebook, submissions.
+- The phrasebook is still fixture-backed — no live Convex data flows
+  through it yet.
+- Korean dictionary data is unsourced: entries exist but their provenance
+  is not verified against a professional source.
+
+These notes will move into `[[track-09-nextjs-frontend]]` when that page
+gets real content.
+
 ## Architecture decisions
 
 - [[adr-0001-android-kotlin]] — if a native Android app is built, it's Kotlin/Compose, not Java/Flutter/RN. Scaffold already exists at `apps/android/`.
 - [[adr-0002-ios-swift]] — if a native iOS app is built, it's Swift 6.2+/SwiftUI. Scaffold already exists at `apps/ios/` (XcodeGen, not a committed `.xcodeproj`).
 - [[adr-0003-auth-architecture]] — Convex Auth for the web app, a separate concern from Track 3's FastAPI JWT auth, not a replacement for it.
 - [[adr-0004-frontend-architecture]] — route map, component conventions ("reusable legos"), and when to use Convex hooks vs. TanStack Query vs. Server Actions vs. Context.
+- [[adr-0005-community-ingestion-pipeline]] — community content flows submit → AI-refine (Python worker) → human moderation (`moderator` role in `userRoles`) → publish as versioned OKF v0.2 content packets. Implemented in `convex/submissions.ts`; open decisions listed inside.
+- [[adr-0006-okf-knowledge-format]] — OKF v0.2 / WikiLLM is the one knowledge format family project-wide: docs packages and runtime content packets share frontmatter, manifest, and wikilink rules (easycv is the reference precedent).
 
 ## Meta
 
-- [[PACKAGE-FORMAT]] — the schema every package in this base follows
+- [[package-format]] — the schema every package in this base follows
+- [[okf-adoption]] — OKF v0.2 adoption rules: frontmatter fields, manifests, wikilinks
+- [[content-packet-format]] — runtime OKF packet contract for community-refined learning content (phrase packs, deck packs, dictionary corrections)
 - [[style-guide]] — documentation writing rules (ASD-STE100-derived)
 - [[ai-agent-docs-guide]] — writing rules for agent-consumed docs specifically
 - [[glossary]] — domain terms
