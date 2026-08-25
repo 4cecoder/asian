@@ -4,8 +4,10 @@ import { Geist, Geist_Mono } from "next/font/google";
 import ConvexClientProvider from "@/components/ConvexClientProvider";
 import "./globals.css";
 
+// shadcn's Tailwind theme (globals.css) maps --font-sans to this exact
+// custom-property name — keep them in sync when touching fonts.
 const geistSans = Geist({
-  variable: "--font-geist-sans",
+  variable: "--font-sans",
   subsets: ["latin"],
 });
 
