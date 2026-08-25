@@ -1,0 +1,74 @@
+name: Python Worker CI
+
+# No `paths:` filter on the trigger — this may become a required status
+# check, and a path-filtered *trigger* means the workflow never runs at
+# all on PRs that don't touch apps/worker, which means the required check
+# never reports anything and GitHub blocks the merge forever waiting on
+# it. Same lesson as android-ci.yml / ios-ci.yml: always run; the first
+# step decides whether to actually do anything. A "skipped" conclusion
+# satisfies a required check; a check that never ran does not.
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+concurrency:
+  group: python-worker-ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    name: lint + format + typecheck + pytest (Python 3.13)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: apps/worker
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - name: Check whether apps/worker changed
+        id: changed
+        working-directory: .
+        run: |
+          base="${{ github.event_name == 'pull_request' && github.event.pull_request.base.sha || github.event.before }}"
+          if [ -z "$base" ] || ! git cat-file -e "$base" 2>/dev/null; then
+            echo "No usable base SHA — assuming relevant." >&2
+            echo "relevant=true" >> "$GITHUB_OUTPUT"
+          elif git diff --name-only "$base" "${{ github.sha }}" -- apps/worker .github/workflows/python-worker-ci.yml | grep -q .; then
+            echo "relevant=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "relevant=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: No apps/worker changes — skipping
+        if: steps.changed.outputs.relevant != 'true'
+        run: echo "Nothing under apps/worker changed in this diff."
+
+      - name: Install uv
+        if: steps.changed.outputs.relevant == 'true'
+        uses: astral-sh/setup-uv@v10
+        with:
+          python-version: "3.13"
+
+      - name: Sync dependencies (frozen lockfile)
+        if: steps.changed.outputs.relevant == 'true'
+        run: uv sync --frozen
+
+      - name: Ruff lint
+        if: steps.changed.outputs.relevant == 'true'
+        run: uv run ruff check .
+
+      - name: Ruff format check
+        if: steps.changed.outputs.relevant == 'true'
+        run: uv run ruff format --check .
+
+      - name: Mypy typecheck
+        if: steps.changed.outputs.relevant == 'true'
+        run: uv run mypy app
+
+      - name: Pytest
+        if: steps.changed.outputs.relevant == 'true'
+        run: uv run pytest

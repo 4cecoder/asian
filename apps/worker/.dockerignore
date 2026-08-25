@@ -1,0 +1,21 @@
+# Never bake local dev state into the image.
+.venv/
+__pycache__/
+*.py[cod]
+.mypy_cache/
+.pytest_cache/
+.ruff_cache/
+
+# Tests and docs don't belong in the runtime image.
+tests/
+README.md
+.env
+.env.*
+
+# Build artifacts and editor noise.
+.dockerignore
+Dockerfile
+*.egg-info/
+.DS_Store
+.idea/
+.vscode/
