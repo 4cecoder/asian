@@ -12,6 +12,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { PageHeader } from "@/components/layout/PageHeader";
 
 import { CardList } from "./CardList";
+import { DeckProgressPanel } from "./DeckProgress";
 import { LANGUAGE_LABELS } from "./languages";
 
 type DeckDetailProps = {
@@ -86,6 +87,8 @@ export function DeckDetail({ deckId }: DeckDetailProps) {
         <Badge variant="secondary">{LANGUAGE_LABELS[deck.language]}</Badge>
         {deck.visibility === "private" ? <Badge variant="outline">Private</Badge> : null}
       </div>
+
+      <DeckProgressPanel deckId={deck._id} />
 
       <h2 className="font-heading mb-3 text-lg font-semibold tracking-tight">Cards</h2>
       <CardList cards={cards} />
