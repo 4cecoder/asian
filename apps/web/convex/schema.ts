@@ -60,9 +60,16 @@ export default defineSchema({
     language,
   }).index("by_deck", ["deckId"]),
 
-  // Per-user SRS review state for a card. Scheduling algorithm itself
-  // (FSRS v4.5 per Track 7) is not implemented yet — this is just the
-  // storage shape so the rest of the schema has somewhere to point.
+  // Per-user SRS review state for a card. Intervals come from the FSRS
+  // engine in src/lib/srs/fsrs.ts (Track 7), applied by
+  // convex/srs.ts recordReview.
+  //
+  // `reps` and `lapses` are optional for backward compatibility only:
+  // rows written by the old placeholder scheduler predate them. A row
+  // missing either field is a placeholder-era row whose stability and
+  // difficulty are meaningless constants (1 and 5), not FSRS values.
+  // recordReview migrates such rows lazily — it derives a fresh FSRS
+  // state the first time the card is touched and fills both fields in.
   srsCardState: defineTable({
     userId: v.id("users"),
     cardId: v.id("cards"),
@@ -76,7 +83,12 @@ export default defineSchema({
     difficulty: v.number(),
     dueAt: v.number(),
     lastReviewedAt: v.optional(v.number()),
+    reps: v.optional(v.number()),
+    lapses: v.optional(v.number()),
   })
+    // by_user_card: unique per-card lookup for recordReview.
+    // by_user_due: the due-today range scan (dueAt <= now), oldest due
+    // first. Together they cover every SRS query — no other index needed.
     .index("by_user_card", ["userId", "cardId"])
     .index("by_user_due", ["userId", "dueAt"]),
 
@@ -180,4 +192,23 @@ export default defineSchema({
   })
     .index("by_language_headword", ["language", "headword"])
     .index("by_language_frequency", ["language", "frequencyRank"]),
+
+  // Per-user profile and learning preferences. Side table keyed by userId
+  // for the same reason as userRoles above: the users table belongs to
+  // @convex-dev/auth's authTables, so our own fields live beside it, not
+  // inside it. `language`/`goal` mirror what onboarding collects (see
+  // features/onboarding/preferences.ts — its literals must stay valid
+  // values here); both are optional because the two onboarding steps save
+  // independently and either may never be completed. See
+  // convex/profiles.ts for the access functions.
+  profiles: defineTable({
+    userId: v.id("users"),
+    displayName: v.optional(v.string()),
+    language: v.optional(language),
+    goal: v.optional(
+      v.union(v.literal("travel"), v.literal("work"), v.literal("family"), v.literal("media")),
+    ),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  }).index("by_user", ["userId"]),
 });
