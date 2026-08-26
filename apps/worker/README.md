@@ -31,9 +31,12 @@ Probes: `GET /healthz` (shallow), `GET /readyz`, `GET /livez`.
 - `app/schemas/errors.py` — RFC 7807/9457 ProblemDetails (PY-051)
 - `app/services/health.py` — dependency-checker protocol
 - `app/services/refinement.py` — community-submission refinement:
-  `RefinementPipeline` protocol (the seam Tracks 4-6 plug real AI into),
-  the deterministic default implementation, and `ConvexIngestionClient`
-  for the Convex claim/complete endpoints
+  `RefinementPipeline` protocol (async), the deterministic default
+  implementation, `LlmRefinementPipeline` (OpenAI-compatible AI
+  refinement, off by default), and `ConvexIngestionClient` for the Convex
+  claim/complete endpoints
+- `app/services/prompts.py` — per-kind system/user prompt builders for
+  the LLM pipeline (pure functions)
 - `app/routers/health.py` — probe routes
 - `app/routers/internal.py` — `GET /internal/ingestion/run`: one pass of
   the claim -> refine -> complete loop (ADR 0005)
@@ -63,10 +66,100 @@ The Convex side reads its copy from `bunx convex env set WORKER_SECRET ...`
 answers 503 `CONFIGURATION_INCOMPLETE`; if they mismatch, Convex answers
 401 and the run reports every submission as failed.
 
-The current pipeline is deterministic only (trim + whitespace collapse +
-per-kind shape validation mirroring the Convex validators). It approves
-clean payloads and flags anything else `needsReview`. No LLM calls yet —
-that is the seam, not an oversight.
+The current default pipeline is deterministic only (trim + whitespace
+collapse + per-kind shape validation mirroring the Convex validators). It
+approves clean payloads and flags anything else `needsReview`. Setting
+`LLM__ENABLED=true` swaps in the AI pipeline — see the next section. The
+selection happens per request in the `get_pipeline` dependency; tests pin
+implementations via `set_default_pipeline` or dependency override.
+
+## LLM refinement (optional, off by default)
+
+`LLM__ENABLED` defaults to `false`: CI and dev environments never call
+out. When enabled, the worker refines each submission through any
+OpenAI-compatible chat-completions server and applies the platform's
+content rules (orthography, romanization, gloss quality, register/level
+tagging per `docs/knowledge/content-packet-format.md`).
+
+### Enable locally (Ollama)
+
+```bash
+ollama serve                 # or use the desktop app
+ollama pull llama3.1:8b      # any instruct model works
+
+# apps/worker/.env (gitignored) or your shell:
+LLM__ENABLED=true
+LLM__BASE_URL=http://localhost:11434/v1
+LLM__MODEL=llama3.1:8b
+
+uv run uvicorn app.main:app --reload
+curl -s localhost:8000/internal/ingestion/run | jq
+```
+
+LM Studio: `LLM__BASE_URL=http://localhost:1234/v1`. Hosted providers:
+set `LLM__BASE_URL=https://api.openai.com/v1`, `LLM__MODEL=...`, and
+`LLM__API_KEY=sk-...`. API keys live in the environment or a secret
+store, never in committed files (see SECURITY.md).
+
+| Setting                  | Default | Purpose                                         |
+| ------------------------ | ------- | ----------------------------------------------- |
+| `LLM__ENABLED`           | `false` | Master switch; false = deterministic pipeline   |
+| `LLM__BASE_URL`          | (none)  | OpenAI-compatible endpoint root, `/v1` included |
+| `LLM__MODEL`             | (none)  | Model name the server exposes                   |
+| `LLM__API_KEY`           | (none)  | Omitted entirely when unset (local servers)     |
+| `LLM__TEMPERATURE`       | `0.0`   | Deterministic output recommended for refinement |
+| `LLM__TIMEOUT_SECONDS`   | `30.0`  | Per-submission provider timeout                 |
+| `LLM__MIN_CONFIDENCE`    | `0.7`   | Verdicts below this land in needsReview         |
+| `LLM__MAX_OUTPUT_TOKENS` | `0`     | 0 omits the cap (best cross-provider compat)    |
+
+Enabling with a missing `LLM__BASE_URL` or `LLM__MODEL` fails the run
+endpoint loudly (503 problem+json), not silently.
+
+### Decision policy
+
+First failure wins; every needsReview path records why in `aiNotes`.
+
+| Condition                                        | Outcome                                 |
+| ------------------------------------------------ | --------------------------------------- |
+| Unknown submission kind (no field guide)         | needsReview, no network call            |
+| Provider unreachable / HTTP error / bad envelope | needsReview                             |
+| Model output not one schema-valid verdict object | needsReview                             |
+| Refined payload breaks the kind's shape          | needsReview, original payload preserved |
+| Model verdict is needsReview                     | needsReview                             |
+| Confidence < `LLM__MIN_CONFIDENCE`               | needsReview                             |
+| Approved + confidence >= threshold + shape valid | approved                                |
+
+A crashing pipeline never aborts the batch: the router counts it in the
+run summary's `failed` bucket and moves on.
+
+### Cost and latency
+
+- **Local (Ollama/LM Studio)**: free, but expect ~0.5-5s per submission
+  depending on model size and hardware. A full pass over the default
+  claim limit of 25 runs sequentially, so budget minutes, not seconds.
+- **Hosted**: short submissions cost fractions of a cent each on
+  mini-class models; temperature 0 keeps outputs stable. Set
+  `LLM__MAX_OUTPUT_TOKENS` (e.g. 512) to bound runaway completions.
+- The run endpoint processes submissions one at a time by design (each
+  completion reports back to Convex before the next claim is judged).
+  Raise throughput by calling the endpoint more often, not by raising
+  `CONVEX__CLAIM_LIMIT` blindly.
+- Watch the run summary: rising `needsReview` with "unavailable" notes
+  means the provider is down; rising `failed` means the pipeline itself
+  is crashing and rows will pile up until the cron sweep releases them.
+
+### Enabling in production
+
+Ops checklist:
+
+1. Store the key in the deployment secret store (never a committed
+   `.env`; same discipline as `CONVEX__WORKER_SECRET` per SECURITY.md).
+2. Set `LLM__ENABLED=true`, `LLM__BASE_URL`, `LLM__MODEL`,
+   `LLM__API_KEY` (hosted providers only).
+3. Start with a low `CONVEX__CLAIM_LIMIT` canary pass and inspect
+   `aiNotes` on completed submissions before opening the throttle.
+4. Keep `ENVIRONMENT=production`'s existing requirement intact:
+   `CONVEX__WORKER_SECRET` must still be set regardless of LLM state.
 
 ## Gotcha: middleware registration order
 

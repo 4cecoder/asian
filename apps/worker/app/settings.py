@@ -57,6 +57,32 @@ class ConvexSettings(BaseModel):
     timeout_seconds: float = Field(default=10.0, gt=0)
 
 
+class LLMSettings(BaseModel):
+    """Refinement LLM via any OpenAI-compatible chat-completions server.
+
+    Disabled by default: CI and dev environments never call out. When
+    enabled, ``base_url`` points at an OpenAI-compatible endpoint root —
+    Ollama (``http://localhost:11434/v1``), LM Studio
+    (``http://localhost:1234/v1``), or OpenAI
+    (``https://api.openai.com/v1``). Local servers ignore ``api_key``;
+    hosted providers require it. Keys live in the environment or secret
+    store, never in committed files (SECURITY.md).
+    """
+
+    enabled: bool = False
+    base_url: str = ""
+    api_key: SecretStr = SecretStr("")
+    model: str = ""
+    temperature: float = Field(default=0.0, ge=0.0, le=2.0)
+    timeout_seconds: float = Field(default=30.0, gt=0)
+    #: Verdicts below this confidence land in needsReview regardless of
+    #: what the model said.
+    min_confidence: float = Field(default=0.7, ge=0.0, le=1.0)
+    #: Cap on completion size sent as ``max_tokens``; 0 omits the limit
+    #: (provider default), which maximizes cross-provider compatibility.
+    max_output_tokens: int = Field(default=0, ge=0)
+
+
 class AppSettings(BaseSettings):
     """Root settings model for the worker service."""
 
@@ -81,6 +107,7 @@ class AppSettings(BaseSettings):
     server: ServerSettings = ServerSettings()
     security: SecuritySettings = SecuritySettings()
     convex: ConvexSettings = ConvexSettings()
+    llm: LLMSettings = LLMSettings()
 
     @model_validator(mode="after")
     def _require_strong_secret_in_production(self) -> "AppSettings":

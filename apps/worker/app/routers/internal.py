@@ -7,6 +7,7 @@ and report each outcome back. Deployments gate this route at the ingress
 level (localhost / private networks only) — it carries no auth of its own.
 """
 
+from collections.abc import AsyncIterator
 from dataclasses import dataclass
 from typing import Annotated, Any
 
@@ -18,9 +19,12 @@ from app.services.refinement import (
     ClaimedSubmission,
     ConvexIngestionClient,
     ConvexIngestionError,
+    LlmRefinementPipeline,
     RefinementPipeline,
+    RefinementResult,
     StaleClaimError,
     build_ingestion_client,
+    build_refinement_pipeline,
 )
 from app.settings import AppSettings, get_settings
 
@@ -28,8 +32,9 @@ logger = get_logger(__name__)
 
 router = APIRouter(prefix="/internal", tags=["internal"])
 
-#: Module-level default pipeline instance; Tracks 4-6 swap the seam by
-#: overriding the ``get_pipeline`` dependency (see tests).
+#: Module-level default pipeline instance; takes precedence over the
+#: settings-driven selection below. Tests (and operators who want to pin
+#: one implementation) swap it via ``set_default_pipeline``.
 _default_pipeline: RefinementPipeline | None = None
 
 
@@ -39,13 +44,23 @@ def set_default_pipeline(pipeline: RefinementPipeline) -> None:
     _default_pipeline = pipeline
 
 
-def get_pipeline() -> RefinementPipeline:
-    """Resolve the refinement pipeline implementation."""
-    if _default_pipeline is None:
-        from app.services.refinement import DeterministicNormalizationPipeline
+async def get_pipeline(request: Request) -> AsyncIterator[RefinementPipeline]:
+    """Resolve the refinement pipeline from settings.
 
-        return DeterministicNormalizationPipeline()
-    return _default_pipeline
+    ``LLM__ENABLED=true`` selects :class:`LlmRefinementPipeline`, else the
+    deterministic default. The LLM implementation owns an HTTP client, so
+    this is a yield-dependency that closes it after the request; the
+    deterministic pipeline needs no cleanup.
+    """
+    if _default_pipeline is not None:
+        yield _default_pipeline
+        return
+    pipeline = build_refinement_pipeline(_settings_from_request(request))
+    try:
+        yield pipeline
+    finally:
+        if isinstance(pipeline, LlmRefinementPipeline):
+            await pipeline.aclose()
 
 
 def _settings_from_request(request: Request) -> AppSettings:
@@ -81,17 +96,16 @@ class IngestionRunSummary:
         }
 
 
-async def _process_one(
+async def _complete_one(
     client: ConvexIngestionClient,
-    pipeline: RefinementPipeline,
     submission: ClaimedSubmission,
+    result: RefinementResult,
 ) -> str:
-    """Refine one submission and report it; returns the disposition.
+    """Report a refinement result; returns the disposition.
 
-    Raises :class:`ConvexIngestionError` when reporting fails with a
-    non-retryable conflict (stale claim), which callers count separately.
+    Raises :class:`ConvexIngestionError` when reporting fails, including
+    the skippable stale-claim conflict (409) callers count separately.
     """
-    result = pipeline.refine(submission)
     try:
         await client.complete(
             submission.submission_id,
@@ -118,12 +132,12 @@ async def run_ingestion(
 ) -> dict[str, Any]:
     """Claim up to ``limit`` pending submissions and refine them.
 
-    ``limit=0`` (default) uses ``CONVEX__CLAIM_LIMIT``. A submission whose
-    claim went stale before we could complete it (Convex answers 409) is
-    counted in ``skippedStaleClaim`` and does not abort the batch; a
-    submission we fail to report for other upstream reasons counts as
-    ``failed``. Both leave rows in ``processing`` for the hourly cron sweep
-    to release back to ``pending`` if they are truly stuck.
+    ``limit=0`` (default) uses ``CONVEX__CLAIM_LIMIT``. Per submission:
+    a pipeline that raises counts as ``failed`` (the loop never aborts
+    on one bad refinement); a stale claim (Convex answers 409) counts in
+    ``skippedStaleClaim``; any other reporting failure counts as
+    ``failed``. Both failure modes leave rows in ``processing`` for the
+    hourly cron sweep to release back to ``pending`` if truly stuck.
     """
     settings = _settings_from_request(request)
     effective_limit = limit or settings.convex.claim_limit
@@ -140,7 +154,20 @@ async def run_ingestion(
 
     for submission in claimed:
         try:
-            outcome = await _process_one(client, pipeline, submission)
+            result = await pipeline.refine(submission)
+        except Exception:
+            # A crashing pipeline must not take the batch down; the row
+            # stays in processing until the cron sweep releases it.
+            summary.failed += 1
+            logger.exception(
+                "ingestion_refine_crashed",
+                submission_id=submission.submission_id,
+                kind=submission.kind,
+            )
+            continue
+
+        try:
+            outcome = await _complete_one(client, submission, result)
         except StaleClaimError:
             # Our claim was released (cron sweep) or re-claimed elsewhere
             # between claim and complete. Skip it; the new owner proceeds.

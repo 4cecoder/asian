@@ -2,25 +2,35 @@
 
 This module owns two seams of the ingestion pipeline:
 
-- :class:`RefinementPipeline` — the protocol the real LLM refinement
-  (Tracks 4-6) will implement. The default implementation,
-  :class:`DeterministicNormalizationPipeline`, does deterministic cleanup
-  only: trim, collapse whitespace, and validate the payload shape against
-  the same per-kind rules the Convex ``submitContent`` validator enforces.
-  No LLM calls live here yet by design.
+- :class:`RefinementPipeline` — the protocol both implementations satisfy.
+  :class:`DeterministicNormalizationPipeline` (the default) does
+  deterministic cleanup only: trim, collapse whitespace, and validate the
+  payload shape against the same per-kind rules the Convex
+  ``submitContent`` validator enforces. :class:`LlmRefinementPipeline`
+  adds AI refinement over any OpenAI-compatible chat-completions server,
+  applying the platform's content rules (orthography, romanization,
+  gloss quality, register/level tagging per
+  ``docs/knowledge/content-packet-format.md``) under a conservative
+  decision policy — anything uncertain lands in ``needsReview``, never
+  crashes the loop.
 - :class:`ConvexIngestionClient` — thin authenticated client for the
   Convex worker endpoints (``POST /api/worker/claim`` and
   ``POST /api/worker/complete``, see ``apps/web/convex/http.ts``).
 """
 
 from dataclasses import dataclass
+import json
 from typing import Any, Literal, Protocol
 
 import httpx
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field, SecretStr, ValidationError
 from pydantic.alias_generators import to_camel
 
 from app.core.exceptions import ConfigurationException
+from app.core.logging import get_logger
+from app.services import prompts
+
+logger = get_logger(__name__)
 
 Outcome = Literal["approved", "needsReview"]
 
@@ -50,15 +60,17 @@ class RefinementResult:
 
 
 class RefinementPipeline(Protocol):
-    """Seam for the future AI refinement pass (Tracks 4-6).
+    """Seam for submission refinement.
 
     Implementations receive an already-claimed submission and must return
-    a verdict plus (possibly transformed) payload. Anything that raises is
-    treated as a processing failure by the caller and left for the cron
-    sweep to release back to pending.
+    a verdict plus (possibly transformed) payload. The loop treats a
+    raised exception as a processing failure: the submission is counted
+    in the run summary's ``failed`` bucket and left for the cron sweep to
+    release back to pending. Well-behaved implementations catch their
+    own recoverable errors and return ``needsReview`` instead of raising.
     """
 
-    def refine(self, submission: ClaimedSubmission) -> RefinementResult:
+    async def refine(self, submission: ClaimedSubmission) -> RefinementResult:
         """Judge one claimed submission."""
         ...
 
@@ -155,11 +167,12 @@ class DeterministicNormalizationPipeline:
     """Default pipeline: normalize text, validate shape, no LLM calls.
 
     Approved when the payload matches its declared kind's shape after
-    normalization; needsReview otherwise (including unknown kinds). The
-    real semantic refinement replaces this class behind the same protocol.
+    normalization; needsReview otherwise (including unknown kinds).
+    Selected whenever ``LLM__ENABLED`` is false — the default — so CI and
+    dev environments never make network calls.
     """
 
-    def refine(self, submission: ClaimedSubmission) -> RefinementResult:
+    async def refine(self, submission: ClaimedSubmission) -> RefinementResult:
         refined = {key: _normalize_strings(value) for key, value in submission.payload.items()}
         problems = _validate_payload(submission.kind, refined)
         if problems:
@@ -179,6 +192,354 @@ class DeterministicNormalizationPipeline:
             ),
             refined_payload=refined,
         )
+
+
+# ---------------------------------------------------------------------------
+# LLM refinement over an OpenAI-compatible provider
+# ---------------------------------------------------------------------------
+
+#: Extra payload keys the LLM may add per kind. Each moves a submission
+# toward its content-packet-format entry shape without breaking the
+# Convex wire contract (refinedPayload is stored as-is downstream).
+_ALLOWED_ENRICHMENT: dict[str, frozenset[str]] = {
+    "phrase": frozenset({"register", "level"}),
+    "card": frozenset({"reading"}),
+    "correction": frozenset({"confidence"}),
+    "exampleSentence": frozenset({"register", "level"}),
+}
+
+_REGISTER_VALUES = frozenset(prompts.REGISTER_VALUES)
+
+#: Upper bound on LLM notes stored on the submission row.
+_NOTES_LIMIT = 600
+
+
+class LlmRefinementError(Exception):
+    """Provider interaction or output parse failed.
+
+    Internal control-flow only: :class:`LlmRefinementPipeline` converts
+    every instance into a ``needsReview`` verdict so the ingestion loop
+    keeps running through provider outages.
+    """
+
+    def __init__(self, reason: str) -> None:
+        super().__init__(reason)
+        self.reason = reason
+
+
+class LlmVerdict(BaseModel):
+    """The JSON object the prompt requires the model to return."""
+
+    model_config = ConfigDict(extra="ignore")
+
+    verdict: Literal["approved", "needsReview"]
+    confidence: float = Field(ge=0.0, le=1.0)
+    notes: str = ""
+    payload: dict[str, Any]
+
+
+def extract_json_object(content: str) -> dict[str, Any]:
+    """Pull one JSON object out of model output, defensively.
+
+    Tries the whole string first, then the span between the first ``{``
+    and the last ``}`` — which also recovers objects wrapped in prose or
+    markdown fences. Raises :class:`LlmRefinementError` when nothing
+    parses into an object.
+    """
+    text = content.strip()
+    candidates = [text]
+    start, end = text.find("{"), text.rfind("}")
+    if start != -1 and end > start:
+        candidates.append(text[start : end + 1])
+    for candidate in candidates:
+        try:
+            parsed = json.loads(candidate)
+        except ValueError:
+            continue
+        if isinstance(parsed, dict):
+            return parsed
+    raise LlmRefinementError("no JSON object found in model output")
+
+
+def parse_verdict(content: str) -> LlmVerdict:
+    """Parse and validate the model's verdict object."""
+    parsed = extract_json_object(content)
+    try:
+        return LlmVerdict.model_validate(parsed)
+    except ValidationError as error:
+        raise LlmRefinementError(f"verdict failed schema validation: {error}") from error
+
+
+def _extract_message_content(response: httpx.Response) -> str:
+    """Dig the assistant message content out of a chat-completions reply."""
+    try:
+        data = response.json()
+        content = data["choices"][0]["message"]["content"]
+    except (ValueError, KeyError, IndexError, TypeError) as error:
+        raise LlmRefinementError(f"malformed provider response: {error}") from error
+    if not isinstance(content, str):
+        raise LlmRefinementError("provider response content is not a string")
+    if not content.strip():
+        raise LlmRefinementError("provider returned empty content")
+    return content
+
+
+def _clip(text: str, limit: int = _NOTES_LIMIT) -> str:
+    return text if len(text) <= limit else text[: limit - 3] + "..."
+
+
+def sanitize_enrichment(kind: str, payload: dict[str, Any]) -> tuple[dict[str, Any], list[str]]:
+    """Keep allowed enrichment keys, drop anything else.
+
+    Returns a cleaned copy plus notes naming dropped fields. Allowed keys
+    are type-checked: ``register`` must use the packet enum,
+    ``confidence`` must be a number in [0, 1], every other enrichment key
+    must be a non-empty string. Core submission fields are never touched.
+    """
+    known_core = set(_REQUIRED_FIELDS.get(kind, ())) | set(_OPTIONAL_STRING_FIELDS.get(kind, ()))
+    allowed = _ALLOWED_ENRICHMENT.get(kind, frozenset())
+    cleaned = dict(payload)
+    dropped: list[str] = []
+    for key in sorted(set(cleaned) - known_core):
+        value = cleaned[key]
+        if key == "register":
+            valid = value in _REGISTER_VALUES
+        elif key == "confidence":
+            valid = isinstance(value, (int, float)) and not isinstance(value, bool)
+            valid = valid and 0 <= value <= 1
+        else:
+            valid = _is_nonempty_str(value)
+        if key in allowed and valid:
+            continue
+        dropped.append(key)
+        del cleaned[key]
+    return cleaned, dropped
+
+
+class ChatCompletionsClient:
+    """Minimal OpenAI-compatible chat-completions caller.
+
+    Works with any server speaking the ``POST {base_url}/chat/completions``
+    dialect: Ollama, LM Studio, vLLM, OpenAI. Requests JSON mode
+    (``response_format: {"type": "json_object"}``) — universally supported
+    across those servers — and enforces the full verdict schema in
+    :func:`parse_verdict` rather than trusting provider-side constraints.
+    Sends an ``Authorization`` header only when an API key is configured,
+    because local servers reject unknown headers in some strict modes.
+    """
+
+    def __init__(
+        self,
+        *,
+        base_url: str,
+        model: str,
+        api_key: SecretStr | None = None,
+        temperature: float = 0.0,
+        timeout_seconds: float = 30.0,
+        max_output_tokens: int = 0,
+    ) -> None:
+        self._model = model
+        self._temperature = temperature
+        self._max_output_tokens = max_output_tokens
+        key = api_key.get_secret_value() if api_key else ""
+        headers = {"Content-Type": "application/json"}
+        if key:
+            headers["Authorization"] = f"Bearer {key}"
+        self._http = httpx.AsyncClient(
+            base_url=base_url.rstrip("/"),
+            timeout=timeout_seconds,
+            headers=headers,
+        )
+
+    async def aclose(self) -> None:
+        await self._http.aclose()
+
+    async def complete_json(self, *, system: str, user: str) -> str:
+        """Return the assistant message content for one prompt pair."""
+        body: dict[str, Any] = {
+            "model": self._model,
+            "messages": [
+                {"role": "system", "content": system},
+                {"role": "user", "content": user},
+            ],
+            "temperature": self._temperature,
+            "response_format": {"type": "json_object"},
+        }
+        if self._max_output_tokens > 0:
+            body["max_tokens"] = self._max_output_tokens
+        try:
+            response = await self._http.post("/chat/completions", json=body)
+        except httpx.HTTPError as error:
+            raise LlmRefinementError(f"provider unreachable: {error}") from error
+        if response.status_code >= 400:
+            raise LlmRefinementError(f"provider returned HTTP {response.status_code}")
+        return _extract_message_content(response)
+
+
+class LlmRefinementPipeline:
+    """AI refinement behind :class:`RefinementPipeline`, never raising.
+
+    Decision policy (in order — first failure wins):
+
+    1. Unknown submission kind (no field guide) → needsReview without a
+       network call.
+    2. Provider unreachable / HTTP error / malformed envelope → needsReview.
+    3. Model output is not one schema-valid verdict object → needsReview.
+    4. Refined payload breaks the kind's shape (same validator as Convex)
+       → needsReview; the original payload is preserved for reviewers.
+    5. Model says needsReview → needsReview with its notes.
+    6. Confidence below ``min_confidence`` → needsReview.
+    7. Otherwise approved, carrying the normalized + enriched payload.
+
+    Every needsReview path records why in ``ai_notes`` so a human can act.
+    """
+
+    def __init__(
+        self,
+        *,
+        base_url: str,
+        model: str,
+        api_key: SecretStr | None = None,
+        temperature: float = 0.0,
+        timeout_seconds: float = 30.0,
+        min_confidence: float = 0.7,
+        max_output_tokens: int = 0,
+    ) -> None:
+        self._model = model
+        self._min_confidence = min_confidence
+        self._client = ChatCompletionsClient(
+            base_url=base_url,
+            model=model,
+            api_key=api_key,
+            temperature=temperature,
+            timeout_seconds=timeout_seconds,
+            max_output_tokens=max_output_tokens,
+        )
+
+    async def aclose(self) -> None:
+        await self._client.aclose()
+
+    async def refine(self, submission: ClaimedSubmission) -> RefinementResult:
+        user_prompt = prompts.build_user_prompt(
+            submission.kind, submission.language, submission.payload
+        )
+        if user_prompt is None:
+            # No guide for this kind: fail deterministically instead of
+            # spending tokens on output we would reject anyway.
+            return RefinementResult(
+                outcome="needsReview",
+                ai_notes=(
+                    f"LLM refinement skipped: unknown submission kind "
+                    f"'{submission.kind}' has no refinement guide."
+                ),
+                refined_payload=submission.payload,
+            )
+
+        try:
+            content = await self._client.complete_json(
+                system=prompts.build_system_prompt(submission.language),
+                user=user_prompt,
+            )
+            verdict = parse_verdict(content)
+        except LlmRefinementError as error:
+            logger.warning(
+                "llm_refinement_failed",
+                submission_id=submission.submission_id,
+                kind=submission.kind,
+                reason=error.reason,
+            )
+            return RefinementResult(
+                outcome="needsReview",
+                ai_notes=_clip(f"LLM refinement unavailable ({self._model}): {error.reason}"),
+                refined_payload=submission.payload,
+            )
+
+        normalized = {key: _normalize_strings(value) for key, value in verdict.payload.items()}
+        cleaned, dropped = sanitize_enrichment(submission.kind, normalized)
+        problems = _validate_payload(submission.kind, cleaned)
+        suffix = f" [dropped unsupported fields: {', '.join(dropped)}]" if dropped else ""
+
+        if problems:
+            logger.warning(
+                "llm_refinement_rejected_shape",
+                submission_id=submission.submission_id,
+                kind=submission.kind,
+                problems=problems,
+            )
+            return RefinementResult(
+                outcome="needsReview",
+                ai_notes=_clip(
+                    f"LLM ({self._model}) payload failed shape validation for kind "
+                    f"'{submission.kind}': {'; '.join(problems)} Original kept "
+                    "for review."
+                ),
+                refined_payload=submission.payload,
+            )
+
+        notes = _clip(verdict.notes)
+        confidence_note = f"confidence {verdict.confidence:.2f}"
+
+        if verdict.verdict == "needsReview":
+            return RefinementResult(
+                outcome="needsReview",
+                ai_notes=f"LLM ({self._model}) flagged for review, {confidence_note}: {notes}",
+                refined_payload=submission.payload,
+            )
+        if verdict.confidence < self._min_confidence:
+            return RefinementResult(
+                outcome="needsReview",
+                ai_notes=(
+                    f"LLM ({self._model}) suggested approval but {confidence_note} is below "
+                    f"threshold {self._min_confidence:.2f}: {notes}"
+                ),
+                refined_payload=submission.payload,
+            )
+
+        logger.info(
+            "llm_refinement_approved",
+            submission_id=submission.submission_id,
+            kind=submission.kind,
+            model=self._model,
+            confidence=verdict.confidence,
+        )
+        return RefinementResult(
+            outcome="approved",
+            ai_notes=(f"LLM ({self._model}) approved, {confidence_note}: {notes}{suffix}"),
+            refined_payload=cleaned,
+        )
+
+
+def build_refinement_pipeline(settings: Any) -> RefinementPipeline:
+    """Select a pipeline from settings: LLM when enabled, else deterministic.
+
+    Raises :class:`ConfigurationException` when ``LLM__ENABLED`` is true
+    but the provider is incompletely configured — an operator asked for
+    AI refinement explicitly, so failing loudly beats silently falling
+    back to the deterministic pass.
+    """
+    llm = settings.llm
+    if not llm.enabled:
+        return DeterministicNormalizationPipeline()
+    base_url = (llm.base_url or "").strip()
+    model = (llm.model or "").strip()
+    missing = [
+        name for name, value in (("LLM__BASE_URL", base_url), ("LLM__MODEL", model)) if not value
+    ]
+    if missing:
+        raise ConfigurationException(
+            detail="LLM__ENABLED is true but required setting(s) are missing: "
+            + ", ".join(missing)
+            + "."
+        )
+    return LlmRefinementPipeline(
+        base_url=base_url,
+        model=model,
+        api_key=llm.api_key,
+        temperature=llm.temperature,
+        timeout_seconds=llm.timeout_seconds,
+        min_confidence=llm.min_confidence,
+        max_output_tokens=llm.max_output_tokens,
+    )
 
 
 # ---------------------------------------------------------------------------

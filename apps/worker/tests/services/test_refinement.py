@@ -15,16 +15,16 @@ def _submission(kind: str, payload: dict) -> ClaimedSubmission:
 
 
 class TestNormalization:
-    def test_trims_and_collapses_whitespace_in_string_fields(self) -> None:
-        result = pipeline.refine(
+    async def test_trims_and_collapses_whitespace_in_string_fields(self) -> None:
+        result = await pipeline.refine(
             _submission("phrase", {"text": "  감사합니다\n\n 하습니다  ", "english": "thank   you"})
         )
         assert result.outcome == "approved"
         assert result.refined_payload["text"] == "감사합니다 하습니다"
         assert result.refined_payload["english"] == "thank you"
 
-    def test_normalizes_nested_situation_pack_phrases(self) -> None:
-        result = pipeline.refine(
+    async def test_normalizes_nested_situation_pack_phrases(self) -> None:
+        result = await pipeline.refine(
             _submission(
                 "situationPack",
                 {
@@ -54,8 +54,8 @@ class TestNormalization:
             ("exampleSentence", {"sentence": "s", "english": "e"}),
         ],
     )
-    def test_valid_kinds_are_approved(self, kind: str, payload: dict) -> None:
-        result = pipeline.refine(_submission(kind, payload))
+    async def test_valid_kinds_are_approved(self, kind: str, payload: dict) -> None:
+        result = await pipeline.refine(_submission(kind, payload))
         assert result.outcome == "approved"
         assert isinstance(result, RefinementResult)
         assert "no AI refinement applied yet" in result.ai_notes
@@ -82,10 +82,10 @@ class TestValidation:
             ("mysteryKind", {"anything": True}),  # unknown kind entirely
         ],
     )
-    def test_invalid_payloads_land_in_needs_review_unchanged(
+    async def test_invalid_payloads_land_in_needs_review_unchanged(
         self, kind: str, payload: dict
     ) -> None:
-        result = pipeline.refine(_submission(kind, payload))
+        result = await pipeline.refine(_submission(kind, payload))
         assert result.outcome == "needsReview"
         # The original payload is preserved untouched for human reviewers.
         assert result.refined_payload == payload
