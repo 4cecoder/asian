@@ -17,6 +17,10 @@ const isProtectedRoute = createRouteMatcher([
   "/dictionary",
   "/roleplay",
   "/submissions",
+  // Staff-only moderation queue — route-level auth gate only; the
+  // moderator/admin role check is server-side (convex/moderation.ts +
+  // requireModerator on every queue read and review write).
+  "/moderation",
   "/profile",
   "/onboarding/:path*",
 ]);
