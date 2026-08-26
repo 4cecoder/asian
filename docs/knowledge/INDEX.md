@@ -136,19 +136,36 @@ table) and what's missing.
 ### Build progress vs. the stubs (as of 2026-08-25)
 
 The stub status describes the _source spec_ coverage, not the code. The
-code has moved ahead of its stub pages; this is the honest state of
-`apps/web` (Track 9):
+code has moved ahead of its stub pages; this is the honest state:
+
+**Landed on `main`:**
 
 - Real route groups and real pages exist for: auth + onboarding,
-  decks (list/detail/new), review, dictionary, phrasebook, submissions.
-- The phrasebook is still fixture-backed — no live Convex data flows
-  through it yet.
+  decks (list/detail/new), review, dictionary, phrasebook,
+  submissions.
+- The phrasebook is live on Convex — real queries against the `phrases`
+  table with a slug index, populated by seed data.
 - Korean dictionary data is sourced from the English Wiktionary Korean
   section via kaikki.org/Wiktextract (CC BY-SA 3.0 + GFDL) — 34,153
-  entries, no frequency data; see `apps/web/convex/seed/README.md`.
+  entries imported into `dictionaryEntries`, no frequency data; see
+  `apps/web/convex/seed/README.md`.
+- The Python worker consumes the ingestion queue end to end: claim and
+  complete endpoints plus a pluggable `RefinementPipeline` whose default
+  pass is deterministic normalization ([[adr-0005-community-ingestion-pipeline]]).
 
-These notes will move into `[[track-09-nextjs-frontend]]` when that page
-gets real content.
+**In flight this sprint (working tree, unmerged — do not treat as done):**
+
+- FSRS v4.5 scheduler replacing the placeholder SRS math
+  ([[adr-0007-srs-engine-fsrs]]).
+- LLM refinement behind an OpenAI-compatible provider boundary
+  ([[adr-0008-llm-refinement-provider]]).
+- Moderation queue UI and moderator functions for the submission
+  pipeline.
+- Profile page.
+
+These notes will move into the per-track pages (`[[track-07-srs-engine]]`,
+`[[track-09-nextjs-frontend]]`, `[[track-10-phrasebook-pwa]]`) as those
+pages get real content.
 
 ## Architecture decisions
 
@@ -158,6 +175,8 @@ gets real content.
 - [[adr-0004-frontend-architecture]] — route map, component conventions ("reusable legos"), and when to use Convex hooks vs. TanStack Query vs. Server Actions vs. Context.
 - [[adr-0005-community-ingestion-pipeline]] — community content flows submit → AI-refine (Python worker) → human moderation (`moderator` role in `userRoles`) → publish as versioned OKF v0.2 content packets. Implemented in `convex/submissions.ts`; open decisions listed inside.
 - [[adr-0006-okf-knowledge-format]] — OKF v0.2 / WikiLLM is the one knowledge format family project-wide: docs packages and runtime content packets share frontmatter, manifest, and wikilink rules (easycv is the reference precedent).
+- [[adr-0007-srs-engine-fsrs]] — Track 7's scheduler is FSRS v4.5 with SM-2 fallback, as a pure library at `src/lib/srs` consumed by the Convex SRS functions; ratings widened to again/hard/good/easy; lazy migration from placeholder rows. Decision accepted; implementation in flight.
+- [[adr-0008-llm-refinement-provider]] — LLM refinement speaks the OpenAI-compatible chat-completions API (Ollama/LM Studio/OpenAI) behind `RefinementPipeline`; parse failure routes to needsReview, never auto-reject; LLM disabled by default; keys env-only.
 
 ## Meta
 
@@ -167,6 +186,7 @@ gets real content.
 - [[style-guide]] — documentation writing rules (ASD-STE100-derived)
 - [[ai-agent-docs-guide]] — writing rules for agent-consumed docs specifically
 - [[glossary]] — domain terms
+- [[prod-cutover-runbook]] — ordered human checklist for issue #25: prod Convex deployment, GitHub/Netlify secrets, prod overlay apply, end-to-end verification
 - `docs/source-specs/README.md` — provenance and the full completeness census
 - `CONTRIBUTING.md` — dev setup, everyday commands, git hooks, branching
 - `SECURITY.md` — what "public except Convex data" actually means

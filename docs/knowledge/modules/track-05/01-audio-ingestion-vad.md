@@ -1,11 +1,14 @@
 ---
-id: t05-audio-ingestion-vad
+okf_version: "0.2"
+package_id: t05-audio-ingestion-vad
+id: t05-audio-ingestion-vad # deprecated alias kept during OKF migration
 title: "Sub-Domain 1: Audio Ingestion, Preprocessing, Normalization & Silero VAD"
 track: "Track 5: Speech-to-Text (STT), Pronunciation Assessment & Pitch/Tone Analysis"
 task_range: "STT-001–STT-020"
-status: complete
+status: stable
+stale_after: 2027-08-25
 tags: [stt, audio, vad, preprocessing, backend]
-related: [t05-whisper-inference-alignment, t04-audio-ingestion-decoding, package-format]
+related: [t05-whisper-inference-alignment, t04-audio-ingestion-resampling, package-format]
 ---
 
 # Sub-Domain 1: Audio Ingestion, Preprocessing, Normalization & Silero VAD
@@ -46,4 +49,4 @@ boundaries from Silero VAD.
 
 - [[t05-whisper-inference-alignment]] — consumes the VAD-gated, normalized audio this package produces.
 - [[t05-pitch-tone-classification]] — Yin pitch extraction also runs on STT-002's resampled 16kHz signal.
-- [[t04-audio-ingestion-decoding]] — Track 4's TTS pipeline has an analogous (separate) decode/resample stage.
+- [[t04-audio-ingestion-resampling]] — Track 4's TTS pipeline has an analogous (separate) decode/resample stage.

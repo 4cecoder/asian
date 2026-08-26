@@ -1,11 +1,14 @@
 ---
-id: t05-whisper-inference-alignment
+okf_version: "0.2"
+package_id: t05-whisper-inference-alignment
+id: t05-whisper-inference-alignment # deprecated alias kept during OKF migration
 title: "Sub-Domain 2: Faster-Whisper Inference Engine & Edge STT Alignment"
 track: "Track 5: Speech-to-Text (STT), Pronunciation Assessment & Pitch/Tone Analysis"
 task_range: "STT-021–STT-040"
-status: complete
+status: stable
+stale_after: 2027-08-25
 tags: [stt, whisper, ctranslate2, inference, backend]
-related: [t05-audio-ingestion-vad, t05-phoneme-g2p, t03-observability-metrics]
+related: [t05-audio-ingestion-vad, t05-phoneme-g2p, t03-observability-otel]
 ---
 
 # Sub-Domain 2: Faster-Whisper Inference Engine & Edge STT Alignment
@@ -44,4 +47,4 @@ and exposes the REST endpoints the rest of the platform calls.
 
 - [[t05-audio-ingestion-vad]] — upstream: supplies the normalized, VAD-gated audio this engine consumes.
 - [[t05-phoneme-g2p]] — downstream: consumes transcribed text + timestamps for phonetic decomposition.
-- [[t03-observability-metrics]] — shares the Prometheus/OpenTelemetry conventions used by STT-036.
+- [[t03-observability-otel]] — shares the Prometheus/OpenTelemetry conventions used by STT-036.
