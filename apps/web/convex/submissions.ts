@@ -241,7 +241,9 @@ export const finishProcessing = internalMutation({
     submissionId: v.id("submissions"),
     outcome: v.union(v.literal("needsReview"), v.literal("approved")),
     aiNotes: v.optional(v.string()),
-    refinedPayload: v.any(),
+    // Optional so callers that didn't refine can omit it; undefined keeps
+    // the existing payload.
+    refinedPayload: v.optional(v.any()),
   },
   handler: async (ctx, args) => {
     const submission = await ctx.db.get(args.submissionId);

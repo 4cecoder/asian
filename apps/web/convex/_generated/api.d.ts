@@ -15,6 +15,8 @@ import type * as crons from "../crons.js";
 import type * as decks from "../decks.js";
 import type * as dictionary from "../dictionary.js";
 import type * as http from "../http.js";
+import type * as phrases from "../phrases.js";
+import type * as seed_phrases from "../seed/phrases.js";
 import type * as seed_sampleSubmissions from "../seed/sampleSubmissions.js";
 import type * as srs from "../srs.js";
 import type * as submissionTypes from "../submissionTypes.js";
@@ -30,6 +32,8 @@ declare const fullApi: ApiFromModules<{
   decks: typeof decks;
   dictionary: typeof dictionary;
   http: typeof http;
+  phrases: typeof phrases;
+  "seed/phrases": typeof seed_phrases;
   "seed/sampleSubmissions": typeof seed_sampleSubmissions;
   srs: typeof srs;
   submissionTypes: typeof submissionTypes;
