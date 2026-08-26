@@ -2,8 +2,9 @@
 
 import { Input } from "@/components/ui/input";
 
+import { PAYLOAD_FIELDS, type PayloadFieldValue } from "./payloadForm";
 import { SubmissionTextarea } from "./SubmissionTextarea";
-import { PAYLOAD_FIELDS, type ComposableKind, type PayloadFieldValue } from "./types";
+import type { ComposableKind } from "./types";
 
 /**
  * Dynamic per-kind payload form. Fields render straight from the

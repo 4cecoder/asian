@@ -92,16 +92,23 @@ The actual LLM refinement runs in the separate Python service
 (`apps/worker/`, Track 3 scaffold). The Convex side exposes
 `beginProcessing` / `finishProcessing` as `internalMutation`s — callable
 only through an authenticated internal path, not from client code. That
-authentication path is an open decision below.
+path is the bearer-secret httpActions described in the decisions below.
 
 ## Open decisions
 
 These are recorded so nobody mistakes silence for agreement:
 
-1. **Worker authentication path.** How the Python worker authenticates to
-   call the internal mutations (Convex function access tokens, a dedicated
-   service identity in `userRoles`, or an HTTP action with a shared secret
-   stored per `SECURITY.md`) is undecided.
+1. **Worker authentication path — DECIDED (2026-08-25).** The worker calls
+   two httpActions in `convex/http.ts`: `POST /api/worker/claim` and
+   `POST /api/worker/complete`, authenticated by
+   `Authorization: Bearer <WORKER_SECRET>`. The secret lives as a Convex
+   env var (`bunx convex env set WORKER_SECRET ...`) per SECURITY.md, and
+   the worker holds its copy as `CONVEX__WORKER_SECRET`
+   (`apps/worker/app/settings.py`). Function access tokens and a service
+   identity were rejected: both couple the worker to Convex Auth machinery
+   it doesn't otherwise use. The internal mutations keep their status
+   guards, so a leaked secret alone still cannot corrupt a row's state
+   machine.
 2. **Anonymous submissions.** `submitContent` currently requires a signed-in
    user (`requireUser`). Whether anonymous contributions should ever be
    accepted (and under what abuse controls) is undecided.
@@ -123,9 +130,12 @@ These are recorded so nobody mistakes silence for agreement:
   audit survive into the packet.
 - The rate limit costs one indexed query per submit and no extra table;
   raising the cap is a constant change.
-- Until the open decisions land, the worker cannot legally call
-  `beginProcessing`/`finishProcessing` from production, and the hourly
-  sweep remains what actually moves stale rows forward.
+- With the worker auth path decided, the Python worker
+  (`apps/worker/app/routers/internal.py`) drives the loop end to end:
+  claim -> refine -> complete. Until real LLM refinement lands (Tracks
+  4-6), the worker's deterministic pass approves only payloads that are
+  already shape-clean; everything else goes to `needsReview`. The hourly
+  sweep remains the backstop for rows the worker never reaches.
 
 ## Related
 

@@ -15,16 +15,11 @@ import { Input } from "@/components/ui/input";
 
 import { useSubmitSubmission } from "./adapter";
 import { LanguagePicker } from "./LanguagePicker";
+import { buildPayload, type PayloadFieldValue } from "./payloadForm";
 import { SubmissionPayloadFields } from "./SubmissionPayloadFields";
 import { SubmissionPreview } from "./SubmissionPreview";
 import { SubmissionTypePicker } from "./SubmissionTypePicker";
-import {
-  buildPayload,
-  SUBMISSION_KINDS,
-  type ComposableKind,
-  type PayloadFieldValue,
-  type SubmissionLanguage,
-} from "./types";
+import { SUBMISSION_KINDS, type ComposableKind, type SubmissionLanguage } from "./types";
 
 const DEFAULT_KIND: ComposableKind = SUBMISSION_KINDS[0];
 

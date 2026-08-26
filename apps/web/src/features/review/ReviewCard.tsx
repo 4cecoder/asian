@@ -29,7 +29,10 @@ export function ReviewCard({ item, revealed }: ReviewCardProps) {
         </CardAction>
       </CardHeader>
       <CardContent className="flex min-h-36 flex-col items-center justify-center text-center">
-        <p className="font-heading text-3xl font-semibold tracking-tight">{item.front}</p>
+        {/* lang switches screen-reader pronunciation to the card's language. */}
+        <p lang={item.language} className="font-heading text-3xl font-semibold tracking-tight">
+          {item.front}
+        </p>
       </CardContent>
       {revealed ? (
         // aria-live announces the answer for screen readers on reveal.

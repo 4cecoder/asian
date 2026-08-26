@@ -1,13 +1,6 @@
 import type { ReactNode } from "react";
 
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardFooter,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
+import { Card, CardContent, CardDescription, CardFooter, CardHeader } from "@/components/ui/card";
 
 /**
  * Shared chrome for the (auth) group's cards. Product logic stays out of
@@ -28,7 +21,9 @@ export function AuthCard({
   return (
     <Card>
       <CardHeader>
-        <CardTitle className="font-heading text-lg font-semibold">{title}</CardTitle>
+        {/* Real h1, styled like CardTitle — sign-in/sign-up pages have no
+            other heading, and CardTitle renders a div. */}
+        <h1 className="font-heading text-lg leading-snug font-semibold">{title}</h1>
         <CardDescription>{description}</CardDescription>
       </CardHeader>
       <CardContent>{children}</CardContent>

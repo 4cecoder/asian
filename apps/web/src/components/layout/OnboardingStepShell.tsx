@@ -25,11 +25,16 @@ export function OnboardingStepShell({
   return (
     <Card>
       <CardHeader>
+        {/* Deliberately a CardTitle div, not an <h1>: e2e/onboarding.spec.ts
+            and auth.spec.ts assert these titles via getByText, which strict-
+            mode-collides with any real heading (Next's route announcer
+            mirrors it). Giving these pages a real heading requires updating
+            those specs to getByRole("heading") first — tracked a11y debt. */}
         <CardTitle>
           Step {step} of {totalSteps}: {title}
         </CardTitle>
         {description ? <p className="text-muted-foreground text-sm">{description}</p> : null}
-        <Progress value={(step / totalSteps) * 100} aria-label={`Onboarding progress`} />
+        <Progress value={(step / totalSteps) * 100} aria-label="Onboarding progress" />
       </CardHeader>
       <CardContent>{children}</CardContent>
     </Card>

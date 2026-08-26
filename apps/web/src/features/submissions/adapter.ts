@@ -11,10 +11,12 @@ import { useMutation, useQuery } from "convex/react";
 import { useCallback, useMemo, useState } from "react";
 
 import { mySubmissionsRef, submitContentRef } from "./api";
-import type { SubmissionRecord, SubmissionStatus, SubmitSubmissionArgs } from "./types";
+import { applyStatusFilter, type StatusFilter } from "./filtering";
+import type { SubmissionRecord, SubmitSubmissionArgs } from "./types";
 
-/** "all" is a UI-only filter value; it maps to no status predicate. */
-export type StatusFilter = SubmissionStatus | "all";
+// Re-exported for the components that consume the hook — StatusFilter
+// stays part of this adapter's public surface.
+export type { StatusFilter };
 
 /** Matches the backend's MAX_QUEUE_PAGE cap. */
 const FETCH_LIMIT = 100;
@@ -22,8 +24,8 @@ const FETCH_LIMIT = 100;
 /**
  * Reactive list of the signed-in user's submissions, newest first.
  * `submissions` is null while the query loads; empty array means
- * genuinely none. Status filtering is client-side because the backend
- * query doesn't accept a filter arg (see ./api.ts).
+ * genuinely none. Status filtering is client-side (see ./filtering.ts)
+ * because the backend query doesn't accept a filter arg (see ./api.ts).
  */
 export function useMySubmissions(filter: StatusFilter = "all"): {
   submissions: SubmissionRecord[] | null;
@@ -33,7 +35,7 @@ export function useMySubmissions(filter: StatusFilter = "all"): {
 
   const submissions = useMemo(() => {
     if (!all) return null;
-    return filter === "all" ? all : all.filter((s) => s.status === filter);
+    return applyStatusFilter(all, filter);
   }, [all, filter]);
 
   return {

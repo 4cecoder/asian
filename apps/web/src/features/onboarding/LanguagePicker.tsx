@@ -32,7 +32,11 @@ export function LanguagePicker({ selected }: LanguagePickerProps) {
               required
               className="sr-only"
             />
-            <span className="font-heading text-xl font-semibold">{option.nativeLabel}</span>
+            {/* lang tags the native-script name so screen readers switch
+                pronunciation (ko/ja/zh are valid BCP-47 codes). */}
+            <span lang={option.value} className="font-heading text-xl font-semibold">
+              {option.nativeLabel}
+            </span>
             <span className="text-muted-foreground text-sm">{option.englishLabel}</span>
           </label>
         ))}
