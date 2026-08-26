@@ -1,0 +1,109 @@
+name: Web Deploy (Prod)
+
+# Production cutover for issue #25: push Convex functions/schema to the
+# PROD deployment, then trigger a production-context Netlify build.
+#
+# Trigger model: v* tag pushes and manual dispatch only. This workflow is
+# deliberately NOT a required status check, so the "no paths filter on a
+# required check" lesson from android-ci.yml does not apply here — there
+# is no PR sitting forever waiting on this workflow's conclusion. Tag
+# filters are safe precisely because nothing depends on it running
+# otherwise.
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+
+# Prod deploys queue instead of cancelling: killing a half-finished
+# production deploy is worse than waiting for it.
+concurrency:
+  group: web-deploy-prod
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  guard-secrets:
+    name: guard (required secrets present)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Fail loudly with actionable messages if secrets are missing
+        env:
+          CONVEX_DEPLOY_KEY: ${{ secrets.CONVEX_DEPLOY_KEY }}
+          NETLIFY_AUTH_TOKEN: ${{ secrets.NETLIFY_AUTH_TOKEN }}
+          NETLIFY_SITE_ID: ${{ secrets.NETLIFY_SITE_ID }}
+        run: |
+          missing=0
+          if [ -z "$CONVEX_DEPLOY_KEY" ]; then
+            echo "::error::Secret CONVEX_DEPLOY_KEY is not set on this repository. Set it with: gh secret set CONVEX_DEPLOY_KEY --repo ${GITHUB_REPOSITORY} (value: the PRODUCTION deploy key from dashboard.convex.dev -> project asian -> Settings -> Deploy keys). See SECURITY.md 'Where secrets actually live'."
+            missing=1
+          fi
+          if [ -z "$NETLIFY_AUTH_TOKEN" ]; then
+            echo "::error::Secret NETLIFY_AUTH_TOKEN is not set on this repository. Set it with: gh secret set NETLIFY_AUTH_TOKEN --repo ${GITHUB_REPOSITORY} (value: a personal access token from Netlify -> User settings -> Applications -> Personal access tokens)."
+            missing=1
+          fi
+          if [ -z "$NETLIFY_SITE_ID" ]; then
+            echo "::error::Secret NETLIFY_SITE_ID is not set on this repository. Set it with: gh secret set NETLIFY_SITE_ID --repo ${GITHUB_REPOSITORY} (value: the API ID from Netlify -> Site configuration -> Site information -> Site ID)."
+            missing=1
+          fi
+          exit $missing
+
+  deploy-convex-prod:
+    name: convex deploy --prod
+    needs: guard-secrets
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: "1.4"
+
+      - run: bun install --frozen-lockfile
+
+      # Same gate CI runs on every PR — do not deploy code that fails lint,
+      # typecheck, unit tests, or build.
+      - name: bun run check
+        run: bun run check
+
+      - name: Deploy Convex functions to the production deployment
+        working-directory: apps/web
+        env:
+          CONVEX_DEPLOY_KEY: ${{ secrets.CONVEX_DEPLOY_KEY }}
+        run: |
+          out="$(bunx convex deploy --prod)"
+          echo "$out"
+
+  deploy-web-netlify:
+    name: netlify deploy --prod (production context)
+    needs: deploy-convex-prod
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: "1.4"
+
+      - run: bun install --frozen-lockfile
+
+      # Runs from the repo root so netlify.toml drives the build
+      # (base = apps/web, @netlify/plugin-nextjs, NODE_VERSION 22) exactly
+      # like a normal Netlify UI build. The production context's env vars
+      # (NEXT_PUBLIC_CONVEX_URL / NEXT_PUBLIC_CONVEX_SITE_URL repointed to
+      # prod in docs/knowledge/runbooks/prod-cutover.md) apply because this
+      # deploys with --prod; preview/dev contexts keep their dev values.
+      - name: Trigger Netlify production deploy
+        env:
+          NETLIFY_AUTH_TOKEN: ${{ secrets.NETLIFY_AUTH_TOKEN }}
+          NETLIFY_SITE_ID: ${{ secrets.NETLIFY_SITE_ID }}
+        run: |
+          bunx netlify-cli deploy \
+            --build \
+            --prod \
+            --message "prod deploy $GITHUB_SHA (issue #25)" \
+            --auth "$NETLIFY_AUTH_TOKEN" \
+            --site "$NETLIFY_SITE_ID"

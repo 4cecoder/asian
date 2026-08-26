@@ -1,0 +1,17 @@
+# ClusterIP fronting the worker pods for ingress-nginx and (later) the
+# frontend pods. Selector matches the plain `app: lingo-worker` pod label.
+apiVersion: v1
+kind: Service
+metadata:
+  name: lingo-worker
+  labels:
+    app.kubernetes.io/name: lingo-worker
+    app.kubernetes.io/component: worker
+spec:
+  selector:
+    app: lingo-worker
+  ports:
+    - name: http
+      port: 80
+      targetPort: http
+      protocol: TCP

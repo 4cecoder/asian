@@ -1,0 +1,39 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+# All namespaced resources land in lingo-prod (created by the sibling
+# namespaces module). ClusterIssuers are cluster-scoped and unaffected.
+namespace: lingo-prod
+
+resources:
+  # ClusterIssuers (cluster-scoped, applied once per cluster). Includes
+  # letsencrypt-prod — the issuer this overlay's Certificate consumes.
+  - ../../base/cert-manager
+  # Worker ServiceAccount, namespace-local copy of base/rbac/sa-worker.yaml
+  # (the base file carries no namespace, so applying base/rbac flat would
+  # put it in the default namespace — see serviceaccount-worker.yaml).
+  - serviceaccount-worker.yaml
+  # Production workload.
+  - worker-deployment.yaml
+  - worker-service.yaml
+  # Production routing + TLS. hello-world is intentionally absent: the
+  # worker now owns the route (staging keeps it as a smoke test).
+  - ingress-worker.yaml
+  - certificate-worker.yaml
+
+# Pin the image tag to the sha-<short> tag pushed by
+# .github/workflows/worker-deploy-prod.yml BEFORE applying this overlay.
+# Find the value with `git rev-parse --short HEAD` for the commit the
+# workflow ran against, then replace REPLACE_WITH_SHA_TAG below:
+#
+#   newTag: sha-1a2b3c4
+images:
+  - name: ghcr.io/4cecoder/asian/lingo-worker
+    newTag: REPLACE_WITH_SHA_TAG
+
+labels:
+  - pairs:
+      app.kubernetes.io/part-of: lingo
+      app.kubernetes.io/environment: production
+    includeSelectors: false
+    includeTemplates: true

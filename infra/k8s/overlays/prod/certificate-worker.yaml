@@ -1,0 +1,23 @@
+# Production TLS certificate from the letsencrypt-prod ClusterIssuer.
+#
+# Unlike staging (explicit Certificate pinned to letsencrypt-staging to
+# protect prod rate limits), this is the real thing: issue #25 acceptance
+# requires valid, browser-trusted TLS on the worker health checks. The
+# letsencrypt-prod issuer allows 5 duplicate certs/week — do not re-apply
+# this resource repeatedly while debugging; use `kubectl describe
+# certificate` and `kubectl get challenges` to diagnose instead.
+# Secret name matches the Ingress tls.secretName above.
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: lingo-tls-cert
+  labels:
+    app.kubernetes.io/name: lingo-worker
+    app.kubernetes.io/environment: production
+spec:
+  secretName: lingo-tls-cert
+  dnsNames:
+    - lingo.yourdomain.com
+  issuerRef:
+    name: letsencrypt-prod
+    kind: ClusterIssuer

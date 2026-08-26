@@ -1,0 +1,56 @@
+# Production worker Ingress. Proves the full chain: DNS -> ingress-nginx
+# -> lingo-worker Service -> FastAPI probe routes, with a real Let's
+# Encrypt PRODUCTION certificate (issue #25 acceptance: "Worker health
+# check reachable from the production ingress with valid TLS").
+#
+# Only the three probe paths are exposed. GET /internal/ingestion/run has
+# no auth of its own (apps/worker/README.md: "gate at the ingress") — until
+# an auth story exists for it, it stays reachable only inside the cluster
+# (NetworkPolicy 03 allows frontend pods; nothing external). Widen paths
+# only together with that auth work.
+#
+# Annotations mirror staging's hello-ingress so per-route behavior matches
+# what TASK-032 sized the controller for (25m audio uploads, long-lived
+# streams).
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: worker-ingress
+  labels:
+    app.kubernetes.io/name: lingo-worker
+    app.kubernetes.io/environment: production
+  annotations:
+    nginx.ingress.kubernetes.io/proxy-body-size: "25m"
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "3600"
+    nginx.ingress.kubernetes.io/proxy-send-timeout: "3600"
+spec:
+  ingressClassName: nginx
+  tls:
+    - hosts:
+        - lingo.yourdomain.com
+      secretName: lingo-tls-cert
+  rules:
+    - host: lingo.yourdomain.com
+      http:
+        paths:
+          - path: /healthz
+            pathType: Exact
+            backend:
+              service:
+                name: lingo-worker
+                port:
+                  number: 80
+          - path: /readyz
+            pathType: Exact
+            backend:
+              service:
+                name: lingo-worker
+                port:
+                  number: 80
+          - path: /livez
+            pathType: Exact
+            backend:
+              service:
+                name: lingo-worker
+                port:
+                  number: 80

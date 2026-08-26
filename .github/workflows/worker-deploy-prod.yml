@@ -1,0 +1,99 @@
+name: Worker Deploy (Prod Image)
+
+# Builds and pushes the FastAPI worker image to GHCR, tagged from the git
+# SHA (plus semver on tag pushes). This is the image source that
+# infra/k8s/overlays/prod pins via its kustomization `images:` block —
+# see docs/knowledge/runbooks/prod-cutover.md.
+#
+# No external secrets required: GHCR auth uses the built-in GITHUB_TOKEN
+# with packages:write. Trigger model mirrors web-deploy-prod.yml — v* tags
+# and manual dispatch only; not a required status check.
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+
+concurrency:
+  group: worker-deploy-prod
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  build-push:
+    name: buildx build + push to GHCR
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      # Multi-arch per track-02 conventions (TASK-CI-021..TASK-CI-029).
+      # The Vultr cluster nodes are amd64, so arm64 is future-proofing, not
+      # a current deployment target. If QEMU-emulated arm64 build times ever
+      # hurt, trim `platforms:` down to linux/amd64 only — single-arch is an
+      # accepted fallback, just note it in the runbook step that pins the tag.
+      - uses: docker/setup-qemu-action@v3
+        with:
+          platforms: amd64,arm64
+
+      - uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Derive tags (sha-<short> always, semver + prod on tag pushes)
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ghcr.io/${{ github.repository }}/lingo-worker
+          tags: |
+            type=sha,prefix=sha-,format=short
+            type=semver,pattern={{version}},enable=${{ startsWith(github.ref, 'refs/tags/v') }}
+            type=raw,value=prod,enable=${{ startsWith(github.ref, 'refs/tags/v') }}
+
+      - name: Build and push
+        id: build
+        uses: docker/build-push-action@v6
+        with:
+          context: apps/worker
+          file: apps/worker/Dockerfile
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha,scope=python-worker-prod
+          cache-to: type=gha,mode=max,scope=python-worker-prod
+          provenance: mode=max
+          sbom: true
+
+      - name: Record pushed digest
+        run: echo "Pushed ghcr.io/${{ github.repository }}/lingo-worker@${{ steps.build.outputs.digest }}"
+
+      - name: Smoke test the amd64 image serves /healthz (track-02 TASK-CI-033 pattern)
+        env:
+          IMAGE: ghcr.io/${{ github.repository }}/lingo-worker:${{ steps.meta.outputs.version }}
+        run: |
+          docker pull --platform linux/amd64 "$IMAGE"
+          docker run -d --name smoke --platform linux/amd64 -p 8000:8000 "$IMAGE"
+          for _ in $(seq 1 30); do
+            code=$(curl -s -o /tmp/healthz.json -w '%{http_code}' http://127.0.0.1:8000/healthz || true)
+            if [ "$code" = "200" ]; then
+              cat /tmp/healthz.json
+              grep -q '"status":"ok"' /tmp/healthz.json
+              echo "Smoke test passed."
+              docker rm -f smoke > /dev/null
+              exit 0
+            fi
+            sleep 2
+          done
+          echo "::error::Container never answered 200 on /healthz" >&2
+          docker logs smoke >&2 || true
+          docker rm -f smoke > /dev/null || true
+          exit 1
