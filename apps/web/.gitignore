@@ -39,3 +39,6 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# exported OKF content packets — build artifacts, regenerate with scripts/export-packets.ts
+/packets/
