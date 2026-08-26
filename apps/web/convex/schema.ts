@@ -146,14 +146,24 @@ export default defineSchema({
     .index("by_language_status", ["language", "status"]),
 
   // Track 10 (phrasebook) scope — situational travel phrases.
+  //
+  // `slug` is the URL-safe public identifier (`{situation}-{lang}-{nn}`,
+  // e.g. "restaurant-ja-01") used by /phrasebook/[situation]/[phraseId]
+  // routes. It exists because Convex document ids are opaque and not
+  // route-safe, and the URL format must stay stable across seeds and
+  // future community-pipeline publishes. Writers must generate slugs —
+  // see convex/seed/phrases.ts for the convention.
   phrases: defineTable({
+    slug: v.string(),
     language,
     situation: v.string(),
     english: v.string(),
     translation: v.string(),
     romanization: v.optional(v.string()),
     audioStorageId: v.optional(v.id("_storage")),
-  }).index("by_language_situation", ["language", "situation"]),
+  })
+    .index("by_slug", ["slug"])
+    .index("by_language_situation", ["language", "situation"]),
 
   // Dictionary / interlinear data ingested from professional sources
   // (e.g. the Refold Mandarin resources research) rather than

@@ -1,3 +1,6 @@
+import { fetchQuery } from "convex/nextjs";
+
+import { api } from "../../../convex/_generated/api";
 import { FIXTURE_PHRASES, FIXTURE_SITUATIONS } from "./fixtures";
 import type { Phrase, PhrasebookLanguage, Situation, SituationSummary } from "./types";
 
@@ -5,24 +8,18 @@ import type { Phrase, PhrasebookLanguage, Situation, SituationSummary } from "./
  * ── THE SWAP POINT ─────────────────────────────────────────────────────
  *
  * Everything the phrasebook UI renders flows through this interface — no
- * page or component imports `fixtures.ts` directly. Today it is backed by
- * local fixtures because the Track 10 Convex side does not exist yet (the
- * `phrases` table is defined in `convex/schema.ts`, but no queries and no
- * seed data ship in this wave).
+ * page or component imports `fixtures.ts` directly.
  *
- * When the Convex functions land, swap implementations WITHOUT touching
- * any caller:
+ * Backed by live Convex queries (`convex/phrases.ts`) as of Track 10.
+ * Pages are Server Components, so each method is a one-shot
+ * `fetchQuery`; if a client component ever needs live reactivity, export
+ * a `useQuery`-based hook alongside this object rather than re-plumbing
+ * pages.
  *
- *   1. Add query functions to a new `convex/phrases.ts` matching these
- *      four operations (`listSituations` can be an aggregate over the
- *      existing `by_language_situation` index, or its own table later).
- *   2. Replace the body of each method below. From Server Components use
- *      `await fetchQuery(api.phrases.listPhrases, {...})`; if a client
- *      component ever needs live reactivity, export a `useQuery`-based
- *      hook alongside this object rather than re-plumbing pages.
- *   3. Delete the fixture import. Field names already match the schema
- *      one-to-one (`language`/`situation`/`english`/`translation`/
- *      `romanization`), so no type mapping is needed.
+ * The fixture implementation is kept below as a fallback/test double —
+ * see `createFixtureSource`. Field names match the schema's `phrases`
+ * table one-to-one; the only mapping is `slug` → `id` (Convex document
+ * ids are opaque, URLs use slugs).
  *
  * Methods are async so callers never know (or care) which backend runs.
  */
@@ -34,7 +31,7 @@ export interface PhrasebookDataSource {
   getSituation(slug: string): Promise<Situation | null>;
   /** Phrases in one situation, optionally narrowed to a language. */
   listPhrases(situationSlug: string, language?: PhrasebookLanguage): Promise<Phrase[]>;
-  /** One phrase by id, or null when unknown → detail page calls `notFound()`. */
+  /** One phrase by slug id, or null when unknown → detail page calls `notFound()`. */
   getPhrase(id: string): Promise<Phrase | null>;
 }
 
@@ -69,5 +66,38 @@ function createFixtureSource(): PhrasebookDataSource {
   };
 }
 
+/**
+ * Live Convex-backed source. Uses `convex/nextjs`'s fetchQuery, which
+ * reads NEXT_PUBLIC_CONVEX_URL (set in .env.local by `bunx convex dev`).
+ */
+function createConvexSource(): PhrasebookDataSource {
+  return {
+    async listSituations() {
+      return await fetchQuery(api.phrases.listSituations, {});
+    },
+
+    async getSituation(slug: string) {
+      return await fetchQuery(api.phrases.getSituation, { slug });
+    },
+
+    async listPhrases(situationSlug: string, language?: PhrasebookLanguage) {
+      return await fetchQuery(api.phrases.listPhrases, {
+        situation: situationSlug,
+        ...(language !== undefined ? { language } : {}),
+      });
+    },
+
+    async getPhrase(id: string) {
+      return await fetchQuery(api.phrases.getPhrase, { slug: id });
+    },
+  };
+}
+
 /** The single instance every phrasebook page/component consumes. */
-export const phrasebookData = createFixtureSource();
+export const phrasebookData = createConvexSource();
+
+/**
+ * Fixture-backed fallback for tests or local runs without a Convex
+ * deployment. Not used by pages.
+ */
+export const fixturePhrasebookData = createFixtureSource();
