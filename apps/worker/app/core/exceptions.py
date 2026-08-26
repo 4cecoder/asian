@@ -59,6 +59,14 @@ class AuthenticationException(AppException):
     headers = {"WWW-Authenticate": "Bearer"}
 
 
+class ConfigurationException(AppException):
+    """The service is deployed with an incomplete configuration."""
+
+    status_code = 503
+    title = "Service Unavailable"
+    error_code = "CONFIGURATION_INCOMPLETE"
+
+
 class AuthorizationException(AppException):
     status_code = 403
     title = "Forbidden"

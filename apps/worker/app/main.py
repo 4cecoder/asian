@@ -12,6 +12,7 @@ from app.core.lifespan import lifespan
 from app.core.logging import setup_logging
 from app.middleware import setup_middleware
 from app.routers.health import router as health_router
+from app.routers.internal import router as internal_router
 from app.settings import AppSettings, get_settings
 
 
@@ -26,9 +27,13 @@ def create_app(settings: AppSettings | None = None) -> FastAPI:
         lifespan=lifespan,
         docs_url="/docs" if resolved.environment != "production" else None,
     )
+    app.state.settings = resolved
     setup_middleware(app, resolved)
     register_exception_handlers(app)
     app.include_router(health_router)
+    # Internal ingestion loop (ADR 0005). No self-auth: bind to localhost /
+    # a private network and gate at the ingress.
+    app.include_router(internal_router)
     return app
 
 

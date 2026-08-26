@@ -30,9 +30,43 @@ Probes: `GET /healthz` (shallow), `GET /readyz`, `GET /livez`.
   CORS-from-settings; `setup_middleware` is the single registration point
 - `app/schemas/errors.py` — RFC 7807/9457 ProblemDetails (PY-051)
 - `app/services/health.py` — dependency-checker protocol
+- `app/services/refinement.py` — community-submission refinement:
+  `RefinementPipeline` protocol (the seam Tracks 4-6 plug real AI into),
+  the deterministic default implementation, and `ConvexIngestionClient`
+  for the Convex claim/complete endpoints
 - `app/routers/health.py` — probe routes
-- `tests/` — mirrors the app package (`core/`, `middleware/`, `schemas/`)
+- `app/routers/internal.py` — `GET /internal/ingestion/run`: one pass of
+  the claim -> refine -> complete loop (ADR 0005)
+- `tests/` — mirrors the app package (`core/`, `middleware/`, `schemas/`,
+  `services/`, `routers/`)
 - `Dockerfile` / `.dockerignore` — uv-based multi-stage build
+
+## Community ingestion loop (ADR 0005)
+
+`GET /internal/ingestion/run` claims up to `CONVEX__CLAIM_LIMIT` pending
+submissions from Convex, runs each through the
+`RefinementPipeline`, and reports `approved` or `needsReview` back. A 409
+from Convex means the claim went stale; it is skipped, not retried. The
+route carries no auth of its own — bind it to localhost / a private
+network and gate at the ingress.
+
+Required settings (no defaults that work against a real deployment):
+
+```bash
+CONVEX__BASE_URL=https://<deployment>.convex.site   # HTTP-actions host,
+                                                    # NOT .convex.cloud
+CONVEX__WORKER_SECRET=<same value as the deployment's WORKER_SECRET>
+```
+
+The Convex side reads its copy from `bunx convex env set WORKER_SECRET ...`
+(see SECURITY.md). If either side's value is missing, the run endpoint
+answers 503 `CONFIGURATION_INCOMPLETE`; if they mismatch, Convex answers
+401 and the run reports every submission as failed.
+
+The current pipeline is deterministic only (trim + whitespace collapse +
+per-kind shape validation mirroring the Convex validators). It approves
+clean payloads and flags anything else `needsReview`. No LLM calls yet —
+that is the seam, not an oversight.
 
 ## Gotcha: middleware registration order
 
