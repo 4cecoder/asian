@@ -35,13 +35,6 @@ export function DictionarySearch() {
     <div className="flex flex-col gap-4">
       <LanguageSwitcher value={language} onChange={setLanguage} />
 
-      {language === "ko" ? (
-        <p className="text-muted-foreground text-xs">
-          Korean dictionary data hasn&apos;t been sourced yet — Korean searches will come back empty
-          until it is.
-        </p>
-      ) : null}
-
       <div className="flex flex-col gap-1.5">
         <label htmlFor="dictionary-search-input" className="text-sm font-medium">
           Search {language === "ja" ? "Japanese" : language === "ko" ? "Korean" : "Chinese"}{" "}

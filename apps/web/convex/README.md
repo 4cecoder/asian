@@ -34,12 +34,15 @@ gh secret set CONVEX_DEPLOY_KEY --repo 4cecoder/asian
 `convex/seed/` holds conversion scripts and generated JSONL for
 `dictionaryEntries` — pulled from real, openly-licensed
 English↔Asian-language dictionaries (JMdict for Japanese, CC-CEDICT for
-Chinese; see `convex/seed/README.md` for sources, licenses, and the
-Korean gap). Once a deployment exists:
+Chinese, English Wiktionary via kaikki.org for Korean; see
+`convex/seed/README.md` for sources and licenses). Once a deployment
+exists:
 
 ```bash
 bun run convex/seed/build-jmdict.ts     # regenerate convex/seed/dictionary-ja.jsonl
 bun run convex/seed/build-cedict.ts     # regenerate convex/seed/dictionary-zh.jsonl
+bun run convex/seed/build-wiktionary-ko.ts  # regenerate convex/seed/dictionary-ko.jsonl
 bunx convex import --table dictionaryEntries convex/seed/dictionary-ja.jsonl
-bunx convex import --table dictionaryEntries convex/seed/dictionary-zh.jsonl
+bunx convex import --table dictionaryEntries --append convex/seed/dictionary-zh.jsonl
+bunx convex import --table dictionaryEntries --append convex/seed/dictionary-ko.jsonl
 ```

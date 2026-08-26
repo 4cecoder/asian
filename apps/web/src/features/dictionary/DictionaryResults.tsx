@@ -17,8 +17,8 @@ type DictionaryResultsProps = {
 
 /**
  * Result list plus every non-result state: idle prompt, loading
- * placeholders, and no-results (with an honest note for Korean, whose
- * data hasn't been sourced yet — see convex/seed/README.md).
+ * placeholders, and no-results (see convex/seed/README.md for which
+ * languages currently have sourced data).
  */
 export function DictionaryResults({ entries, language, hasQuery }: DictionaryResultsProps) {
   if (!hasQuery) {
@@ -42,9 +42,7 @@ export function DictionaryResults({ entries, language, hasQuery }: DictionaryRes
   if (entries.length === 0) {
     return (
       <p className="text-muted-foreground text-sm">
-        {language === "ko"
-          ? "No Korean results — Korean dictionary data hasn't been sourced yet."
-          : `No ${LANGUAGE_LABELS[language]} entries match this search.`}
+        No {LANGUAGE_LABELS[language]} entries match this search.
       </p>
     );
   }

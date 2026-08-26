@@ -52,9 +52,7 @@ test.describe("dictionary", () => {
     expect(consoleErrors).toEqual([]);
   });
 
-  test("switching to Korean shows the not-sourced note and honest empty results", async ({
-    authedPage,
-  }) => {
+  test("switching to Korean searches real Korean entries", async ({ authedPage }) => {
     const consoleErrors = collectConsoleErrors(authedPage);
 
     await authedPage.goto("/dictionary");
@@ -63,17 +61,18 @@ test.describe("dictionary", () => {
       .getByRole("button", { name: "Korean" })
       .click();
 
-    // The not-sourced note appears immediately on switching.
-    await expect(
-      authedPage.getByText(/Korean dictionary data hasn't been sourced yet/),
-    ).toBeVisible();
-
+    // 안녕하세요 is a Wiktionary (kaikki) headword; the prefix also
+    // matches 안녕 etc.
     await authedPage.locator(SEARCH_INPUT).fill("안녕");
-    await expect(
-      authedPage.getByText("No Korean results — Korean dictionary data hasn't been sourced yet."),
-    ).toBeVisible({ timeout: 15_000 });
+
     const status = authedPage.locator(STATUS_LINE);
-    await expect(status).toContainText("0 results for “안녕”");
+    await expect(status).toContainText("for “안녕”", { timeout: 15_000 });
+    const statusText = (await status.textContent()) ?? "";
+    const count = Number.parseInt(statusText, 10);
+    expect(Number.isNaN(count)).toBe(false);
+    expect(count).toBeGreaterThan(0);
+
+    await expect(authedPage.locator("span[lang='ko']", { hasText: "안녕" }).first()).toBeVisible();
 
     // The switcher reflects the active language via aria-pressed.
     await expect(

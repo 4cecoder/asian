@@ -143,8 +143,9 @@ code has moved ahead of its stub pages; this is the honest state of
   decks (list/detail/new), review, dictionary, phrasebook, submissions.
 - The phrasebook is still fixture-backed — no live Convex data flows
   through it yet.
-- Korean dictionary data is unsourced: entries exist but their provenance
-  is not verified against a professional source.
+- Korean dictionary data is sourced from the English Wiktionary Korean
+  section via kaikki.org/Wiktextract (CC BY-SA 3.0 + GFDL) — 34,153
+  entries, no frequency data; see `apps/web/convex/seed/README.md`.
 
 These notes will move into `[[track-09-nextjs-frontend]]` when that page
 gets real content.

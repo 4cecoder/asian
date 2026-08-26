@@ -20,7 +20,7 @@ export const search = query({
 
     // Range query on the by_language_headword index: everything with
     // headword >= prefix and < prefix+"￿" is a prefix match, without
-    // scanning the whole (343k-row) table.
+    // scanning the whole (377k-row) table.
     return await ctx.db
       .query("dictionaryEntries")
       .withIndex("by_language_headword", (q) =>
