@@ -35,7 +35,7 @@ jobs:
       # a current deployment target. If QEMU-emulated arm64 build times ever
       # hurt, trim `platforms:` down to linux/amd64 only — single-arch is an
       # accepted fallback, just note it in the runbook step that pins the tag.
-      - uses: docker/setup-qemu-action@v3
+      - uses: docker/setup-qemu-action@v4
         with:
           platforms: amd64,arm64
 
