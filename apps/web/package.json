@@ -30,15 +30,15 @@
     "@edge-runtime/vm": "^5.0.0",
     "@playwright/test": "^1.62.1",
     "@tailwindcss/postcss": "^4",
-    "@types/node": "^20",
+    "@types/node": "^26",
     "@types/react": "^19",
     "@types/react-dom": "^19",
-    "convex-test": "^0.0.56",
-    "eslint": "^9",
-    "eslint-config-next": "16.3.1",
+    "convex-test": "^0.0.58",
+    "eslint": "^10",
+    "eslint-config-next": "16.3.5",
     "tailwindcss": "^4",
-    "typescript": "^5",
-    "vitest": "^4.1.11"
+    "typescript": "^7",
+    "vitest": "^5.0.0"
   },
   "packageManager": "bun@1.4.0",
   "ignoreScripts": [
