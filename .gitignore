@@ -44,8 +44,8 @@ bun-debug.log*
 .convex/
 *.convex.local
 .auth-keys.json
-# regenerated from convex/seed/build-*.ts — large, and identical output
-# from the same public source, so not worth tracking in git
+# Uncompressed working files generated from the committed, compressed
+# dictionary snapshot or the upstream conversion scripts.
 apps/web/convex/seed/*.jsonl
 
 # android / gradle

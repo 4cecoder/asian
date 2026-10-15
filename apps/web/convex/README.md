@@ -29,14 +29,17 @@ actually live"):
 gh secret set CONVEX_DEPLOY_KEY --repo 4cecoder/asian
 ```
 
-## Seeding real dictionary data
+## Seeding dictionary data
 
-`convex/seed/` holds conversion scripts and generated JSONL for
-`dictionaryEntries` — pulled from real, openly-licensed
-English↔Asian-language dictionaries (JMdict for Japanese, CC-CEDICT for
-Chinese, English Wiktionary via kaikki.org for Korean; see
-`convex/seed/README.md` for sources and licenses). Once a deployment
-exists:
+`convex/seed/` holds conversion scripts and compressed JSONL snapshots for
+`dictionaryEntries`. The snapshot is checked into GitHub and can seed a new
+Convex deployment without downloading source corpora. It contains only public,
+licensed dictionary data, not Convex document IDs or account data. See
+`convex/seed/README.md` for licenses and restore instructions. To load a fresh
+deployment, follow that guide; do not append the snapshot to an existing table.
+
+To regenerate from the upstream, openly licensed sources (JMdict for Japanese,
+CC-CEDICT for Chinese, and English Wiktionary via kaikki.org for Korean):
 
 ```bash
 bun run convex/seed/build-jmdict.ts     # regenerate convex/seed/dictionary-ja.jsonl

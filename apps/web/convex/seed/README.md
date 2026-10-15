@@ -1,10 +1,11 @@
 # convex/seed/
 
-Conversion scripts that turn real, openly-licensed dictionary sources
-into JSONL matching the `dictionaryEntries` table in `../schema.ts`.
-Generated `.jsonl` files aren't committed (`apps/web/convex/seed/*.jsonl`
-is gitignored) — regenerate them from the public sources below, they're
-identical output either way.
+Conversion scripts that turn openly licensed dictionary sources into JSONL
+matching the `dictionaryEntries` table in `../schema.ts`. The compressed
+`dictionary-{ja,zh,ko}.jsonl.gz` files are the sanitized snapshot of the
+Convex `dictionaryEntries` table. They contain dictionary fields only. Convex
+document IDs and creation timestamps are removed. The raw `.jsonl` working
+files remain ignored because the import snapshots are stored compressed.
 
 ## Sources
 
@@ -20,6 +21,30 @@ dual-licensed CC BY-SA + GFDL, so redistributing this processed data
 stays under at least one of those — don't relicense it.
 
 ## Regenerating and importing
+
+To load the committed snapshot into a **new, empty** Convex deployment, unpack
+each language file and import once. Do not append these files to a deployment
+that already has dictionary rows; that creates duplicates.
+
+```bash
+cd apps/web/convex/seed
+gzip -dc dictionary-ja.jsonl.gz > /tmp/dictionary-ja.jsonl
+gzip -dc dictionary-zh.jsonl.gz > /tmp/dictionary-zh.jsonl
+gzip -dc dictionary-ko.jsonl.gz > /tmp/dictionary-ko.jsonl
+bunx convex import --table dictionaryEntries /tmp/dictionary-ja.jsonl
+bunx convex import --table dictionaryEntries --append /tmp/dictionary-zh.jsonl
+bunx convex import --table dictionaryEntries --append /tmp/dictionary-ko.jsonl
+```
+
+To rebuild the snapshot from upstream source data, use the conversion scripts
+below. The current snapshot has 218,513 Japanese, 124,880 Chinese, and 34,153
+Korean entries. Keep the source attribution in every row and follow the
+licenses listed above when redistributing the files.
+
+The full Convex export is not stored in this repository. It also contains
+account and session tables. Only `dictionaryEntries` was extracted.
+
+The commands below regenerate uncompressed JSONL directly from upstream:
 
 ```bash
 curl -sL http://ftp.edrdg.org/pub/Nihongo/JMdict_e.gz | gunzip > /tmp/JMdict_e
